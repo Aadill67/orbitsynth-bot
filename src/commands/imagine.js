@@ -1,25 +1,22 @@
+const axios  = require('axios');
 const logger = require('../utils/logger');
 
-/**
- * /imagine <prompt>
- * Generates images using Hugging Face FLUX.1-schnell — free, high quality.
- * Requires HF_API_KEY in .env (free at huggingface.co)
- */
 module.exports = async (ctx) => {
   const userId = ctx.from.id;
   const prompt = ctx.message.text.replace(/^\/imagine\s*/i, '').trim();
 
   if (!process.env.HF_API_KEY) {
-    return ctx.reply('⚠️ Image generation not configured. Admin needs to add HF_API_KEY to .env');
+    return ctx.reply('⚠️ HF_API_KEY not set. Add it to Railway Variables tab.');
   }
 
   if (!prompt) {
     return ctx.replyWithHTML(
       `🎨 <b>Image Generator</b>\n\n` +
-      `Add a description:\n` +
-      `<code>/imagine Kashmir mountains at golden hour, photorealistic</code>\n` +
-      `<code>/imagine a wolf howling at the moon, digital art</code>\n` +
-      `<code>/imagine cozy coffee shop rainy day, warm lighting</code>`
+      `Usage: <code>/imagine a sunset over mountains</code>\n\n` +
+      `<b>Examples:</b>\n` +
+      `<code>/imagine Kashmir mountains golden hour, photorealistic</code>\n` +
+      `<code>/imagine wolf howling at moon, digital art</code>\n` +
+      `<code>/imagine cozy coffee shop rainy day, warm light</code>`
     );
   }
 
@@ -27,73 +24,32 @@ module.exports = async (ctx) => {
 
   try {
     waitMsg = await ctx.replyWithHTML(
-      `🎨 Generating your image...\n` +
-      `📝 <i>${prompt}</i>\n\n` +
-      `⏳ Please wait ~20 seconds...`
+      `🎨 Generating...\n📝 <i>${prompt}</i>\n\n⏳ About 20 seconds...`
     );
-
     await ctx.sendChatAction('upload_photo');
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60_000);
+    const response = await axios({
+      method:       'POST',
+      url:          'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+      headers: {
+        'Authorization': `Bearer ${process.env.HF_API_KEY}`,
+        'Content-Type':  'application/json',
+        'x-wait-for-model': 'true',
+      },
+      data:         { inputs: prompt },
+      responseType: 'arraybuffer',   // get raw image bytes
+      timeout:      60_000,
+    });
 
-    // First attempt
-    let response = await fetch(
-      'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-      {
-        method:  'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.HF_API_KEY}`,
-          'Content-Type': 'application/json',
-          'x-wait-for-model': 'true',
-        },
-        body:   JSON.stringify({ inputs: prompt }),
-        signal: controller.signal,
-      }
-    );
-
-    // Model loading — wait and retry once
-    if (response.status === 503) {
-      logger.info('Model loading, retrying in 10s...', { userId });
-      await ctx.telegram.editMessageText(
-        ctx.chat.id, waitMsg.message_id, null,
-        `🎨 Model warming up...\n📝 <i>${prompt}</i>\n\n⏳ Almost there, ~10 more seconds...`,
-        { parse_mode: 'HTML' }
-      ).catch(() => {});
-
-      await new Promise(r => setTimeout(r, 10_000));
-      await ctx.sendChatAction('upload_photo');
-
-      response = await fetch(
-        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-        {
-          method:  'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.HF_API_KEY}`,
-            'Content-Type': 'application/json',
-            'x-wait-for-model': 'true',
-          },
-          body:   JSON.stringify({ inputs: prompt }),
-          signal: controller.signal,
-        }
-      );
-    }
-
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`HF API ${response.status}: ${errText.slice(0, 150)}`);
-    }
-
-    // Response is raw image bytes
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(response.data);
 
     if (buffer.length < 1000) {
-      throw new Error('Received empty or invalid image data');
+      throw new Error('Received empty image — model may be loading, try again');
     }
 
-    await ctx.sendChatAction('upload_photo');
+    if (waitMsg) {
+      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
+    }
 
     await ctx.replyWithPhoto(
       { source: buffer, filename: 'generated.jpg' },
@@ -106,24 +62,28 @@ module.exports = async (ctx) => {
       }
     );
 
-    if (waitMsg) {
-      await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-    }
-
-    logger.info('Image generated via HuggingFace', { userId, prompt: prompt.slice(0, 60) });
+    logger.info('Image generated', { userId, prompt: prompt.slice(0, 60) });
 
   } catch (err) {
     if (waitMsg) {
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
     }
 
-    logger.error('Image generation error', { userId, error: err.message });
+    const status  = err.response?.status;
+    const detail  = err.response?.data
+      ? Buffer.from(err.response.data).toString().slice(0, 150)
+      : err.message;
 
-    const isTimeout = err.name === 'AbortError';
-    await ctx.reply(
-      isTimeout
-        ? '⏱️ Timed out. HuggingFace is under heavy load. Try again in a minute!'
-        : `⚠️ Generation failed: ${err.message.slice(0, 100)}\n\nTry again or rephrase your prompt.`
-    );
+    logger.error('Image generation error', { userId, status, error: detail });
+
+    if (status === 503) {
+      await ctx.reply('⏳ Model is loading (cold start). Wait 20 seconds and try again.');
+    } else if (status === 401) {
+      await ctx.reply('🔑 Invalid HF API key. Check HF_API_KEY in Railway variables.');
+    } else if (status === 429) {
+      await ctx.reply('⏱️ HuggingFace rate limit hit. Wait a minute and try again.');
+    } else {
+      await ctx.reply(`⚠️ Failed: ${detail}\n\nTry again in a moment.`);
+    }
   }
 };
