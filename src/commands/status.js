@@ -1,6 +1,7 @@
 const ai     = require('../services/ai');
 const db     = require('../services/database');
 const memory = require('../services/conversation');
+const config = require('../../config');
 const { mainMenuKeyboard } = require('../utils/keyboards');
 
 module.exports = async (ctx) => {
@@ -35,6 +36,7 @@ module.exports = async (ctx) => {
 
     `<b>System</b>\n` +
     `AI service:      ${ai.isEnabled     ? '✅ Online'    : '❌ Offline'}\n` +
+    `Image Gen:       ${config.fal.apiKey ? '✅ Configured' : '❌ No FAL_KEY'}\n` +
     `Database:        ${db.isConnected() ? '✅ Connected' : '⚠️ Memory-only'}\n` +
     `Active sessions: ${memory.activeSessions}`;
 
