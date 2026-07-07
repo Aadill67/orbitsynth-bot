@@ -47,20 +47,32 @@ module.exports = async (ctx) => {
       prompt: prompt.slice(0, 60),
     });
   } catch (err) {
-    // Clean up loading message on failure
+    // catch (err) {
+    //   // Clean up loading message on failure
+    //   if (waitMsg)
+    //     await ctx.telegram
+    //       .deleteMessage(ctx.chat.id, waitMsg.message_id)
+    //       .catch(() => {});
+
+    //   logger.error("Image generation error", { userId, error: err.message });
+    //   const userMsg = err.message?.includes('FAL_KEY')
+    //     ? '❌ Image generation is not configured. Admin needs to set FAL_KEY.'
+    //     : err.message?.includes('401') || err.message?.includes('403')
+    //       ? '❌ Invalid FAL_KEY or insufficient credits. Get a free key at fal.ai/dashboard'
+    //       : err.message?.includes('429')
+    //         ? '❌ Rate limited by image API. Wait a moment and try again.'
+    //         : `❌ Image generation failed. Try a different prompt.`;
+    //   await ctx.reply(userMsg);
+    // }
+
     if (waitMsg)
       await ctx.telegram
         .deleteMessage(ctx.chat.id, waitMsg.message_id)
         .catch(() => {});
 
     logger.error("Image generation error", { userId, error: err.message });
-    const userMsg = err.message?.includes('FAL_KEY')
-      ? '❌ Image generation is not configured. Admin needs to set FAL_KEY.'
-      : err.message?.includes('401') || err.message?.includes('403')
-        ? '❌ Invalid FAL_KEY or insufficient credits. Get a free key at fal.ai/dashboard'
-        : err.message?.includes('429')
-          ? '❌ Rate limited by image API. Wait a moment and try again.'
-          : `❌ Image generation failed. Try a different prompt.`;
-    await ctx.reply(userMsg);
+
+    // TEMPORARY - show real error
+    await ctx.reply(`❌ Real error: ${err.message}`);
   }
 };
