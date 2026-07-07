@@ -1,32 +1,33 @@
-// src/services/imageGenerator.js
-
 const config = require('../../config');
 const logger = require('../utils/logger');
 
-const HF_URL =
-  "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell";
-
 async function generateImageWithFlux(prompt) {
-  if (!config.hf.apiKey) {
-    throw new Error('HF_API_KEY not configured. Add it to your Railway env vars.');
+  if (!config.fal.apiKey) {
+    throw new Error('FAL_KEY not configured. Get one at https://fal.ai/dashboard');
   }
 
-  const response = await fetch(HF_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.hf.apiKey}`,
-      "Content-Type": "application/json",
+  const { fal } = require('@fal-ai/client');
+  fal.config({ credentials: config.fal.apiKey });
+
+  logger.info('Generating image with Fal.ai', { prompt: prompt.slice(0, 60) });
+
+  const result = await fal.run('fal-ai/flux/schnell', {
+    input: {
+      prompt: prompt,
+      image_size: 'landscape_4_3',
+      num_images: 1,
     },
-    body: JSON.stringify({ inputs: prompt }),
   });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`HuggingFace API returned ${response.status}: ${body.slice(0, 100)}`);
-  }
+  const imageUrl = result.data?.images?.[0]?.url;
+  if (!imageUrl) throw new Error('No image URL in Fal.ai response');
 
-  const imageBuffer = await response.arrayBuffer();
-  return Buffer.from(imageBuffer);
+  const response = await fetch(imageUrl);
+  if (!response.ok) throw new Error(`Failed to download image: ${response.status}`);
+  const buffer = await response.arrayBuffer();
+
+  logger.info('Image generated successfully via Fal.ai');
+  return Buffer.from(buffer);
 }
 
 module.exports = { generateImageWithFlux };

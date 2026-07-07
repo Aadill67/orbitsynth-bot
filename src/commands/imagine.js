@@ -54,13 +54,13 @@ module.exports = async (ctx) => {
         .catch(() => {});
 
     logger.error("Image generation error", { userId, error: err.message });
-    const userMsg = err.message?.includes('HF_API_KEY')
-      ? '❌ Image generation is not configured. The admin needs to set HF_API_KEY.'
-      : err.message?.includes('503')
-        ? '❌ AI image model is currently loading. Try again in 10-20 seconds.'
-        : err.message?.includes('402')
-          ? '❌ HuggingFace billing required. The free tier may have expired.'
-          : `❌ Image generation failed. ${err.message?.includes('401') ? 'Invalid API key.' : 'Try again.'}`;
+    const userMsg = err.message?.includes('FAL_KEY')
+      ? '❌ Image generation is not configured. Admin needs to set FAL_KEY.'
+      : err.message?.includes('401') || err.message?.includes('403')
+        ? '❌ Invalid FAL_KEY or insufficient credits. Get a free key at fal.ai/dashboard'
+        : err.message?.includes('429')
+          ? '❌ Rate limited by image API. Wait a moment and try again.'
+          : `❌ Image generation failed. Try a different prompt.`;
     await ctx.reply(userMsg);
   }
 };
