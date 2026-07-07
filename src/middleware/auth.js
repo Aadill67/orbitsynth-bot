@@ -25,6 +25,7 @@ module.exports = async (ctx, next) => {
           firstName:    tg.first_name   ?? null,
           lastName:     tg.last_name    ?? null,
           languageCode: tg.language_code ?? 'en',
+          messageCount: 1,
         });
         logger.info('New user registered', { id: tg.id, username: tg.username });
       } else {

@@ -15,6 +15,9 @@ const config = {
     model:     process.env.AI_MODEL || 'gemini-1.5-flash', // ← Gemini model
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1024', 10),
   },
+  hf: {
+    apiKey: process.env.HF_API_KEY || null,
+  },
   rateLimit: {
     windowMs:    10_000,
     maxMessages: 5,

@@ -52,16 +52,106 @@ module.exports = async (ctx) => {
     );
   }
 
+  if (action === 'menu_weather') {
+    return safeEdit(
+      ctx,
+      `<b>🌤️ Weather</b>\n\n` +
+      `Use the <code>/weather</code> command followed by a city name:\n\n` +
+      `<code>/weather London</code>\n` +
+      `<code>/weather Tokyo</code>\n` +
+      `<code>/weather New York</code>\n\n` +
+      `Powered by Open-Meteo (free).`,
+      backKeyboard()
+    );
+  }
+
+  if (action === 'menu_crypto') {
+    return safeEdit(
+      ctx,
+      `<b>💰 Crypto Prices</b>\n\n` +
+      `Quick shortcuts:\n` +
+      `<code>/btc</code> — Bitcoin\n` +
+      `<code>/eth</code> — Ethereum\n` +
+      `<code>/sol</code> — Solana\n` +
+      `<code>/doge</code> — Dogecoin\n\n` +
+      `Search any coin:\n` +
+      `<code>/crypto cardano</code>\n` +
+      `<code>/crypto avalanche</code>`,
+      backKeyboard()
+    );
+  }
+
+  if (action === 'menu_translate') {
+    return safeEdit(
+      ctx,
+      `<b>🌐 Translate</b>\n\n` +
+      `Translate between 100+ languages:\n\n` +
+      `<code>/translate en>es Hello</code>\n` +
+      `<code>/translate auto>fr Good morning</code>\n` +
+      `<code>/translate en>de How are you?</code>\n\n` +
+      `<b>Common codes:</b> en, es, fr, de, it, pt, ru, ja, ko, zh, ar, hi`,
+      backKeyboard()
+    );
+  }
+
+  if (action === 'menu_search') {
+    return safeEdit(
+      ctx,
+      `<b>🔍 Web Search</b>\n\n` +
+      `Search the web right from Telegram:\n\n` +
+      `<code>/search latest AI news 2026</code>\n` +
+      `<code>/search best React courses</code>\n` +
+      `<code>/search JavaScript vs Rust</code>\n\n` +
+      `Powered by DuckDuckGo (private).`,
+      backKeyboard()
+    );
+  }
+
+  if (action === 'menu_youtube') {
+    return safeEdit(
+      ctx,
+      `<b>🎬 YouTube Summarizer</b>\n\n` +
+      `Get AI-powered summaries of any YouTube video:\n\n` +
+      `<code>/yt https://youtube.com/watch?v=...</code>\n` +
+      `<code>/yt &lt;video_id&gt;</code>\n\n` +
+      `Or just <b>paste a YouTube link</b> and I'll auto-detect it!`,
+      backKeyboard()
+    );
+  }
+
+  if (action === 'menu_remind') {
+    return safeEdit(
+      ctx,
+      `<b>⏰ Reminders</b>\n\n` +
+      `Set reminders with natural time:\n\n` +
+      `<code>/remind 10m Deploy the bot</code>\n` +
+      `<code>/remind 1h Take a break</code>\n` +
+      `<code>/remind 30s Quick test</code>\n\n` +
+      `<b>Units:</b> s (seconds), m (minutes), h (hours)`,
+      backKeyboard()
+    );
+  }
+
   if (action === 'menu_help') {
     return safeEdit(
       ctx,
       `<b>❓ Help</b>\n\n` +
-      `<code>/start</code>   — Welcome screen\n` +
-      `<code>/help</code>    — Detailed help\n` +
-      `<code>/status</code>  — Your stats\n` +
-      `<code>/clear</code>   — Reset AI memory\n` +
-      `<code>/imagine</code> — Generate an image 🎨\n\n` +
-      `<b>Send a photo</b> to analyze it with AI 🖼️`,
+      `<b>AI & Chat</b>\n` +
+      `<code>/start</code>     — Welcome screen\n` +
+      `<code>/help</code>      — This help\n` +
+      `<code>/status</code>    — Your stats\n` +
+      `<code>/clear</code>     — Reset AI memory\n\n` +
+      `<b>Tools</b>\n` +
+      `<code>/weather</code>   — Weather forecast\n` +
+      `<code>/crypto</code>    — Crypto prices\n` +
+      `<code>/btc /eth /sol</code> — Quick prices\n` +
+      `<code>/translate</code> — Translate text\n` +
+      `<code>/search</code>    — Web search\n` +
+      `<code>/yt</code>        — YouTube summary\n` +
+      `<code>/remind</code>    — Set a reminder\n` +
+      `<code>/imagine</code>   — Generate image 🎨\n\n` +
+      `<b>Send a photo</b> to analyze with AI 🖼️\n` +
+      `<b>Send a YouTube link</b> for auto-summary 🎬`,
       backKeyboard()
     );
   }

@@ -8,8 +8,20 @@ const mainMenuKeyboard = () =>
       Markup.button.callback('📊 My Stats',          'menu_stats'),
     ],
     [
-      Markup.button.callback('🎨 Generate Image',   'menu_imagine'),  // NEW
-      Markup.button.callback('🖼️ Analyze Photo',    'menu_photo'),    // NEW
+      Markup.button.callback('🎨 Generate Image',   'menu_imagine'),
+      Markup.button.callback('🖼️ Analyze Photo',    'menu_photo'),
+    ],
+    [
+      Markup.button.callback('🌤️ Weather',          'menu_weather'),
+      Markup.button.callback('💰 Crypto',            'menu_crypto'),
+    ],
+    [
+      Markup.button.callback('🌐 Translate',        'menu_translate'),
+      Markup.button.callback('🔍 Search',           'menu_search'),
+    ],
+    [
+      Markup.button.callback('🎬 YouTube Summary',  'menu_youtube'),
+      Markup.button.callback('⏰ Reminders',         'menu_remind'),
     ],
     [
       Markup.button.callback('⚙️ Settings',          'menu_settings'),

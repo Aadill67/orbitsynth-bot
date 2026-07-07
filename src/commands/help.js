@@ -4,26 +4,37 @@ module.exports = async (ctx) => {
   const text =
     `<b>📖 OrbitSynth Bot — Help</b>\n\n` +
 
-    `<b>Commands:</b>\n` +
-    `/start  — Show welcome screen & main menu\n` +
-    `/help   — Show this help message\n` +
-    `/status — Your account & bot stats\n` +
-    `/clear  — Wipe your AI chat history\n\n` +
+    `<b>AI & Chat:</b>\n` +
+    `Type any message to chat with AI. Full conversation memory for 1 hour.\n\n` +
 
-    `<b>AI Chat:</b>\n` +
-    `Type any message and I'll reply using Claude AI. ` +
-    `I remember the full conversation until you clear it or it expires after 1 hour of inactivity.\n\n` +
+    `<b>Commands:</b>\n` +
+    `/start     — Welcome & main menu\n` +
+    `/help      — This help\n` +
+    `/status    — Your stats\n` +
+    `/clear     — Reset AI memory\n` +
+    `/weather   — Weather forecast for any city\n` +
+    `/crypto    — Crypto price (e.g. /crypto bitcoin)\n` +
+    `/btc /eth /sol — Quick crypto prices\n` +
+    `/translate — Translate text (e.g. en>fr Hello)\n` +
+    `/search    — Web search\n` +
+    `/yt        — YouTube video summary\n` +
+    `/remind    — Set a reminder\n` +
+    `/imagine   — Generate AI image 🎨\n\n` +
+
+    `<b>Smart Auto-Detect:</b>\n` +
+    `• Send a YouTube link → auto-summary 🎬\n` +
+    `• Send a photo → AI analysis 🖼️\n\n` +
 
     `<b>AI Personalities:</b>\n` +
-    `Change how I respond via <b>Settings → AI Personality:</b>\n` +
-    `• <b>Default</b>  — Balanced, helpful responses\n` +
-    `• <b>Concise</b>  — 1–3 sentence replies only\n` +
-    `• <b>Detailed</b> — Thorough answers with context\n` +
-    `• <b>Friendly</b> — Warm, emoji-sprinkled tone\n\n` +
+    `Settings → AI Personality:\n` +
+    `• <b>Default</b>  — Balanced\n` +
+    `• <b>Concise</b>  — 1–3 sentences\n` +
+    `• <b>Detailed</b> — Thorough\n` +
+    `• <b>Friendly</b> — Warm with emojis\n\n` +
 
     `<b>Tips:</b>\n` +
-    `• Context persists across messages\n` +
-    `• Use /clear before switching topics for best results\n` +
+    `• Context persists per conversation\n` +
+    `• Use /clear before switching topics\n` +
     `• Admins bypass rate limiting`;
 
   await ctx.replyWithHTML(text, mainMenuKeyboard());
