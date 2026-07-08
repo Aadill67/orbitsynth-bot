@@ -31,17 +31,20 @@ module.exports = async (ctx) => {
     const buffer = await response.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
 
-    // If user added a caption, treat it as the question about the image
-    const question = ctx.message.caption
-      || 'Describe this image in detail. What do you see? Include objects, colors, mood, and any visible text.';
+    const caption = ctx.message.caption || '';
+
+    const isOcr = caption.trim().toLowerCase() === '/ocr';
+    const question = isOcr
+      ? 'Extract and return ALL visible text from this image exactly as written. Return only the extracted text, no commentary.'
+      : caption || 'Describe this image in detail. What do you see? Include objects, colors, mood, and any visible text.';
 
     const analysis = await ai.analyzeImage(userId, base64, 'image/jpeg', question);
 
-    await ctx.reply(analysis);
+    await ctx.reply(isOcr ? `📝 Extracted Text:\n\n${analysis}` : analysis);
 
-    logger.info('Photo analyzed', {
+    logger.info(isOcr ? 'OCR done' : 'Photo analyzed', {
       userId,
-      hasCaption: !!ctx.message.caption,
+      hasCaption: !!caption,
       fileSize:   photo.file_size,
     });
 
