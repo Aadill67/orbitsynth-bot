@@ -1,6 +1,7 @@
 const ai     = require('../services/ai');
 const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
+const ytCtx = require('../services/youtubeContext');
 
 /**
  * Handles all plain-text messages that aren't handled by a /command.
@@ -40,9 +41,11 @@ module.exports = async (ctx) => {
 
       const summary = await ai.chat(userId, aiPrompt, 'concise');
 
+      ytCtx.set(userId, { transcript, title: info.title, videoId });
+
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(
-        `🎬 <b>${info.title}</b>\n\n${summary}\n\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
+        `🎬 <b>${info.title}</b>\n\n${summary}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
       );
 
       logger.info('YouTube auto-summarized', { videoId, title: info.title });
@@ -59,11 +62,14 @@ module.exports = async (ctx) => {
     ?? ctx.dbUser?.preferences?.aiPersonality
     ?? 'default';
 
-  // Show "typing…" while the AI processes the request
   await ctx.sendChatAction('typing');
 
   try {
-    const reply = await ai.chat(userId, text, personality);
+    const ytData = ytCtx.get(userId);
+    const reply = ytData
+      ? await ai.chat(userId, text, 'default',
+          `The user previously watched a YouTube video titled "${ytData.title}" (https://youtu.be/${ytData.videoId}).\nUse the transcript below to answer their follow-up question accurately. Reference specific parts of the video in your answer.\n\nTranscript:\n${ytData.transcript.slice(0, 5000)}`)
+      : await ai.chat(userId, text, personality);
     await ctx.reply(reply);
 
   } catch (err) {

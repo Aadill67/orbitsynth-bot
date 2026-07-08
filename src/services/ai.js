@@ -47,12 +47,14 @@ class AIService {
    * Send a text message to Gemini and return the AI reply.
    * Manages conversation history automatically.
    */
-  async chat(userId, text, personality = 'default') {
+  async chat(userId, text, personality = 'default', context = '') {
     if (!this._enabled) {
       return '🔇 AI is not configured. Add GEMINI_API_KEY to .env to enable.';
     }
 
-    memory.push(userId, 'user', text);
+    const finalText = context ? `${context}\n\nUser question: ${text}` : text;
+
+    memory.push(userId, 'user', finalText);
 
     const allHistory      = memory.getHistory(userId);
     const previousHistory = this._toGeminiHistory(allHistory.slice(0, -1));
@@ -71,7 +73,7 @@ class AIService {
         generationConfig: { maxOutputTokens: config.ai.maxTokens },
       });
 
-      const result = await chatSession.sendMessage(text);
+      const result = await chatSession.sendMessage(finalText);
       const reply  = result.response.text();
 
       memory.push(userId, 'assistant', reply);

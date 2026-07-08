@@ -1,6 +1,7 @@
 const ai = require('../services/ai');
 const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
+const ytCtx = require('../services/youtubeContext');
 
 module.exports = async (ctx) => {
   const text = ctx.message.text.replace(/^\/yt\s*/i, '').trim();
@@ -35,9 +36,11 @@ module.exports = async (ctx) => {
 
     const summary = await ai.chat(ctx.from.id, aiPrompt, 'concise');
 
+    ytCtx.set(ctx.from.id, { transcript, title: info.title, videoId });
+
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
     await ctx.replyWithHTML(
-      `🎬 <b>${info.title}</b>\n\n${summary}\n\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
+      `🎬 <b>${info.title}</b>\n\n${summary}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
     );
 
     logger.info('YouTube summarized', { videoId, title: info.title, transcriptLen: transcript.length });
