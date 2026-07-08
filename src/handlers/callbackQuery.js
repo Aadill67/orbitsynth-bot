@@ -4,6 +4,7 @@ const db     = require('../services/database');
 const User   = require('../models/User');
 const logger = require('../utils/logger');
 const weatherCtx = require('../services/weatherContext');
+const { getSessionKey } = require('../utils/session');
 const {
   mainMenuKeyboard,
   personalityKeyboard,
@@ -173,7 +174,7 @@ module.exports = async (ctx) => {
   }
 
   if (action === 'menu_stats') {
-    const histLen     = memory.length(userId);
+    const histLen     = memory.length(getSessionKey(ctx));
     const personality = ctx.session?.personality
       ?? ctx.dbUser?.preferences?.aiPersonality
       ?? 'default';
@@ -258,7 +259,8 @@ module.exports = async (ctx) => {
 
   // ── Confirm / cancel clear ────────────────────────────────────────
   if (action === 'menu_clear') {
-    const count = memory.length(userId);
+    const sessionKey = getSessionKey(ctx);
+    const count = memory.length(sessionKey);
     if (count === 0) {
       return safeEdit(
         ctx,
@@ -275,8 +277,9 @@ module.exports = async (ctx) => {
   }
 
   if (action === 'confirm_clear') {
-    const count = memory.length(userId);
-    ai.clearHistory(userId);
+    const sessionKey = getSessionKey(ctx);
+    const count = memory.length(sessionKey);
+    ai.clearHistory(sessionKey);
     return safeEdit(
       ctx,
       `<b>✅ History Cleared</b>\n\nRemoved ${count} message${count !== 1 ? 's' : ''}. Fresh start on next message.`,
@@ -298,7 +301,7 @@ module.exports = async (ctx) => {
     const valid = [1800000, 3600000, 21600000, 86400000];
     if (!valid.includes(ttlMs)) return;
 
-    memory.setTtl(userId, ttlMs);
+    memory.setTtl(getSessionKey(ctx), ttlMs);
 
     if (db.isConnected()) {
       try {

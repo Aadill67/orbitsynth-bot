@@ -2,23 +2,18 @@ const ai     = require('../services/ai');
 const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
 const ytCtx = require('../services/youtubeContext');
+const { getSessionKey, shouldRespondInGroup } = require('../utils/session');
 
-/**
- * Handles all plain-text messages that aren't handled by a /command.
- * Auto-detects YouTube links, otherwise sends to AI.
- */
 module.exports = async (ctx) => {
-  const userId = ctx.from.id;
+  const sessionKey = getSessionKey(ctx);
   const text   = ctx.message.text;
 
-  // Commands not matched by bot.command() fall through to here — skip them
   if (text.startsWith('/')) {
-    return ctx.reply(
-      `❓ Unknown command. Use /help to see available commands.`
-    );
+    return ctx.reply(`❓ Unknown command. Use /help to see available commands.`);
   }
 
-  // Auto-detect YouTube links
+  if (!(await shouldRespondInGroup(ctx))) return;
+
   const videoId = extractVideoId(text);
   if (videoId) {
     const waitMsg = await ctx.reply(`🎬 Detected YouTube link! Fetching transcript...`);
@@ -39,9 +34,9 @@ module.exports = async (ctx) => {
 
       await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `🤖 Generating AI summary...`);
 
-      const summary = await ai.chat(userId, aiPrompt, 'concise');
+      const summary = await ai.chat(sessionKey, aiPrompt, 'concise');
 
-      ytCtx.set(userId, { transcript, title: info.title, videoId });
+      ytCtx.set(sessionKey, { transcript, title: info.title, videoId });
 
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(
@@ -57,7 +52,6 @@ module.exports = async (ctx) => {
     return;
   }
 
-  // Read personality from session → DB preference → fallback to default
   const personality = ctx.session?.personality
     ?? ctx.dbUser?.preferences?.aiPersonality
     ?? 'default';
@@ -65,15 +59,15 @@ module.exports = async (ctx) => {
   await ctx.sendChatAction('typing');
 
   try {
-    const ytData = ytCtx.get(userId);
+    const ytData = ytCtx.get(sessionKey);
     const reply = ytData
-      ? await ai.chat(userId, text, 'default',
+      ? await ai.chat(sessionKey, text, 'default',
           `The user previously watched a YouTube video titled "${ytData.title}" (https://youtu.be/${ytData.videoId}).\nUse the transcript below to answer their follow-up question accurately. Reference specific parts of the video in your answer.\n\nTranscript:\n${ytData.transcript.slice(0, 5000)}`)
-      : await ai.chat(userId, text, personality);
+      : await ai.chat(sessionKey, text, personality);
     await ctx.reply(reply);
 
   } catch (err) {
-    logger.error('Message handler: AI error', { userId, error: err.message, status: err.status });
+    logger.error('Message handler: AI error', { userId: ctx.from.id, error: err.message, status: err.status });
 
     let userMsg;
     if (err.status === 429) {

@@ -2,8 +2,10 @@ const ai = require('../services/ai');
 const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
 const ytCtx = require('../services/youtubeContext');
+const { getSessionKey } = require('../utils/session');
 
 module.exports = async (ctx) => {
+  const sessionKey = getSessionKey(ctx);
   const text = ctx.message.text.replace(/^\/yt\s*/i, '').trim();
   if (!text) {
     return ctx.replyWithHTML(
@@ -34,9 +36,9 @@ module.exports = async (ctx) => {
 
     await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `🤖 Generating summary with AI...`);
 
-    const summary = await ai.chat(ctx.from.id, aiPrompt, 'concise');
+    const summary = await ai.chat(sessionKey, aiPrompt, 'concise');
 
-    ytCtx.set(ctx.from.id, { transcript, title: info.title, videoId });
+    ytCtx.set(sessionKey, { transcript, title: info.title, videoId });
 
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
     await ctx.replyWithHTML(

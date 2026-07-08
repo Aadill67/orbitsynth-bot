@@ -5,10 +5,12 @@ const { execSync } = require('child_process');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
 const logger = require('../utils/logger');
+const { getSessionKey } = require('../utils/session');
 
 const TMP_DIR = path.join(os.tmpdir(), 'orbitsynth-voice');
 
 module.exports = async (ctx) => {
+  const sessionKey = getSessionKey(ctx);
   const userId = ctx.from.id;
   const voice = ctx.message.voice;
 

@@ -1,5 +1,6 @@
 const ai     = require('../services/ai');
 const logger = require('../utils/logger');
+const { getSessionKey } = require('../utils/session');
 
 /**
  * Handles incoming photos.
@@ -7,12 +8,12 @@ const logger = require('../utils/logger');
  * - Without caption → auto-describes the image in detail
  */
 module.exports = async (ctx) => {
+  const sessionKey = getSessionKey(ctx);
   const userId = ctx.from.id;
 
   try {
     await ctx.sendChatAction('typing');
 
-    // Telegram gives multiple sizes — always use the largest
     const photos = ctx.message.photo;
     const photo  = photos[photos.length - 1];
 
@@ -38,7 +39,7 @@ module.exports = async (ctx) => {
       ? 'Extract and return ALL visible text from this image exactly as written. Return only the extracted text, no commentary.'
       : caption || 'Describe this image in detail. What do you see? Include objects, colors, mood, and any visible text.';
 
-    const analysis = await ai.analyzeImage(userId, base64, 'image/jpeg', question);
+    const analysis = await ai.analyzeImage(sessionKey, base64, 'image/jpeg', question);
 
     await ctx.reply(isOcr ? `📝 Extracted Text:\n\n${analysis}` : analysis);
 

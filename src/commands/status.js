@@ -3,11 +3,13 @@ const db     = require('../services/database');
 const memory = require('../services/conversation');
 const config = require('../../config');
 const { mainMenuKeyboard } = require('../utils/keyboards');
+const { getSessionKey } = require('../utils/session');
 
 module.exports = async (ctx) => {
+  const sessionKey = getSessionKey(ctx);
   const userId = ctx.from.id;
 
-  const histLen     = memory.length(userId);
+  const histLen     = memory.length(sessionKey);
   const personality = ctx.session?.personality
     ?? ctx.dbUser?.preferences?.aiPersonality
     ?? 'default';
