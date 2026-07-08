@@ -69,9 +69,19 @@ const confirmClearKeyboard = () =>
 const backKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('◀️ Back to Menu', 'menu_back')]]);
 
+/* ── Weather Today/Week toggle ───────────────────────────────────────── */
+const weatherKeyboard = () =>
+  Markup.inlineKeyboard([
+    [
+      Markup.button.callback('☀️ Today', 'weather_today'),
+      Markup.button.callback('📅 Week', 'weather_week'),
+    ],
+  ]);
+
 module.exports = {
   mainMenuKeyboard,
   personalityKeyboard,
   confirmClearKeyboard,
   backKeyboard,
+  weatherKeyboard,
 };

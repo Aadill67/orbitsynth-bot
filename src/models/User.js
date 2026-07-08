@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     languageCode: { type: String,  default: 'en' },
     isBlocked:    { type: Boolean, default: false },
     messageCount: { type: Number,  default: 0 },
+    defaultCity: { type: String, default: null },
     preferences: {
       aiPersonality: {
         type:    String,
