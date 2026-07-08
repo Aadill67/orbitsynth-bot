@@ -19,6 +19,7 @@ const searchCmd    = require('./commands/websearch');
 const remindCmd    = require('./commands/remind');
 const ytCmd        = require('./commands/yt');
 const fetchCmd     = require('./commands/fetchpage');
+const codeCmd      = require('./commands/code');
 
 /* ── Handlers ────────────────────────────────────────────────────── */
 const messageHandler       = require('./handlers/message');
@@ -58,6 +59,7 @@ bot.command('search',   searchCmd);
 bot.command('remind',   remindCmd);
 bot.command('yt',       ytCmd);
 bot.command('fetch',    fetchCmd);
+bot.command('code',     codeCmd);
 
 /* ── Event handlers ──────────────────────────────────────────────── */
 bot.on('callback_query', callbackQueryHandler);
