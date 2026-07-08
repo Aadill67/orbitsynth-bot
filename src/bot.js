@@ -23,7 +23,8 @@ const codeCmd      = require('./commands/code');
 
 /* ── Handlers ────────────────────────────────────────────────────── */
 const messageHandler       = require('./handlers/message');
-const photoHandler         = require('./handlers/photo');           // 📸 NEW
+const photoHandler         = require('./handlers/photo');
+const voiceHandler         = require('./handlers/voice');
 const callbackQueryHandler = require('./handlers/callbackQuery');
 const errorHandler         = require('./handlers/error');
 
@@ -63,8 +64,9 @@ bot.command('code',     codeCmd);
 
 /* ── Event handlers ──────────────────────────────────────────────── */
 bot.on('callback_query', callbackQueryHandler);
-bot.on('photo',          photoHandler);    // 📸 any photo sent to the bot
-bot.on('text',           messageHandler);  // all other text → AI
+bot.on('photo',          photoHandler);
+bot.on('voice',          voiceHandler);
+bot.on('text',           messageHandler);
 
 /* ── Global error boundary ───────────────────────────────────────── */
 bot.catch(errorHandler);

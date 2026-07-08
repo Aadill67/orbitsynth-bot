@@ -15,8 +15,8 @@ const config = {
     model:     process.env.AI_MODEL || 'gemini-1.5-flash', // ← Gemini model
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1024', 10),
   },
-  fal: {
-    apiKey: process.env.FAL_KEY || null,
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || null,
   },
   rateLimit: {
     windowMs:    10_000,
