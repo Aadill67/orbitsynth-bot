@@ -12,6 +12,7 @@
     "@fal-ai/client": "^1.10.1",
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.17.0",
+    "cheerio": "^1.2.0",
     "dotenv": "^16.4.5",
     "mongoose": "^8.4.0",
     "telegraf": "^4.16.3",

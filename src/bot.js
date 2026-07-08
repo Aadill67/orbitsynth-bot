@@ -18,6 +18,7 @@ const translateCmd = require('./commands/translate');
 const searchCmd    = require('./commands/websearch');
 const remindCmd    = require('./commands/remind');
 const ytCmd        = require('./commands/yt');
+const fetchCmd     = require('./commands/fetchpage');
 
 /* ── Handlers ────────────────────────────────────────────────────── */
 const messageHandler       = require('./handlers/message');
@@ -56,6 +57,7 @@ bot.command('translate', translateCmd);
 bot.command('search',   searchCmd);
 bot.command('remind',   remindCmd);
 bot.command('yt',       ytCmd);
+bot.command('fetch',    fetchCmd);
 
 /* ── Event handlers ──────────────────────────────────────────────── */
 bot.on('callback_query', callbackQueryHandler);
