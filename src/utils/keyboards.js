@@ -78,10 +78,43 @@ const weatherKeyboard = () =>
     ],
   ]);
 
+/* ── Settings submenu ──────────────────────────────────────────────────── */
+const settingsKeyboard = (currentTtl) => {
+  const ttlLabel = currentTtl === 1800000 ? '30m'
+    : currentTtl === 3600000 ? '1h'
+    : currentTtl === 21600000 ? '6h'
+    : currentTtl === 86400000 ? '24h' : '1h';
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('🧠 AI Personality', 'menu_personality')],
+    [Markup.button.callback(`⏱️ Session TTL (${ttlLabel})`, 'menu_ttl')],
+    [Markup.button.callback('◀️ Back to Menu', 'menu_back')],
+  ]);
+};
+
+const TTL_OPTIONS = [
+  { ms: 1800000,  label: '30 min' },
+  { ms: 3600000,  label: '1 hour' },
+  { ms: 21600000, label: '6 hours' },
+  { ms: 86400000, label: '24 hours' },
+];
+
+const ttlKeyboard = (current = 3600000) =>
+  Markup.inlineKeyboard([
+    ...TTL_OPTIONS.map(o => [
+      Markup.button.callback(
+        `${current === o.ms ? '✅ ' : ''}${o.label}`,
+        `set_ttl_${o.ms}`
+      ),
+    ]),
+    [Markup.button.callback('◀️ Back to Settings', 'menu_settings')],
+  ]);
+
 module.exports = {
   mainMenuKeyboard,
   personalityKeyboard,
   confirmClearKeyboard,
   backKeyboard,
   weatherKeyboard,
+  settingsKeyboard,
+  ttlKeyboard,
 };

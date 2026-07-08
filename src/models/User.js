@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
     isBlocked:    { type: Boolean, default: false },
     messageCount: { type: Number,  default: 0 },
     defaultCity: { type: String, default: null },
+    sessionTtl: { type: Number, default: 3600000 },
     preferences: {
       aiPersonality: {
         type:    String,

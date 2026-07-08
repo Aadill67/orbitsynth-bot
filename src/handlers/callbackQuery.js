@@ -10,6 +10,8 @@ const {
   confirmClearKeyboard,
   backKeyboard,
   weatherKeyboard,
+  settingsKeyboard,
+  ttlKeyboard,
 } = require('../utils/keyboards');
 
 const WEATHER_CODES = {
@@ -190,14 +192,31 @@ module.exports = async (ctx) => {
   }
 
   if (action === 'menu_settings') {
+    const currentTtl = ctx.dbUser?.sessionTtl ?? 3600000;
+    return safeEdit(
+      ctx,
+      `<b>⚙️ Settings</b>\n\nChoose what to configure:`,
+      settingsKeyboard(currentTtl)
+    );
+  }
+
+  if (action === 'menu_personality') {
     const current = ctx.session?.personality
       ?? ctx.dbUser?.preferences?.aiPersonality
       ?? 'default';
-
     return safeEdit(
       ctx,
-      `<b>⚙️ Settings — AI Personality</b>\n\nChoose how I respond. Saved automatically.`,
+      `<b>🧠 AI Personality</b>\n\nChoose how I respond. Saved automatically.`,
       personalityKeyboard(current)
+    );
+  }
+
+  if (action === 'menu_ttl') {
+    const current = ctx.dbUser?.sessionTtl ?? 3600000;
+    return safeEdit(
+      ctx,
+      `<b>⏱️ Session TTL</b>\n\nHow long should I remember our conversation after inactivity?\n\nCurrent: <b>${current === 1800000 ? '30 minutes' : current === 3600000 ? '1 hour' : current === 21600000 ? '6 hours' : '24 hours'}</b>`,
+      ttlKeyboard(current)
     );
   }
 
@@ -270,6 +289,39 @@ module.exports = async (ctx) => {
       ctx,
       `<b>🏠 OrbitSynth Main Menu</b>\n\nAction cancelled.`,
       mainMenuKeyboard()
+    );
+  }
+
+  // ── Session TTL ────────────────────────────────────────────────────
+  if (action?.startsWith('set_ttl_')) {
+    const ttlMs = parseInt(action.replace('set_ttl_', ''), 10);
+    const valid = [1800000, 3600000, 21600000, 86400000];
+    if (!valid.includes(ttlMs)) return;
+
+    memory.setTtl(userId, ttlMs);
+
+    if (db.isConnected()) {
+      try {
+        await User.updateOne(
+          { telegramId: userId },
+          { $set: { sessionTtl: ttlMs } },
+          { upsert: true }
+        );
+      } catch (err) {
+        logger.error('Failed to persist TTL', { userId, err: err.message });
+      }
+    }
+
+    const label = ttlMs === 1800000 ? '30 minutes'
+      : ttlMs === 3600000 ? '1 hour'
+      : ttlMs === 21600000 ? '6 hours' : '24 hours';
+
+    logger.info('Session TTL updated', { userId, ttlMs });
+
+    return safeEdit(
+      ctx,
+      `<b>⏱️ Session TTL</b>\n\n✅ Set to <b>${label}</b>. I'll remember our conversation for ${label} after inactivity.`,
+      ttlKeyboard(ttlMs)
     );
   }
 

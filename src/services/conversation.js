@@ -9,54 +9,38 @@ const logger  = require('../utils/logger');
  * Just replace the Map operations inside get/push/clear with async Redis calls
  * and make the public methods async.
  */
+const DEFAULT_TTL = 3600000;
+
 class ConversationMemory {
   constructor() {
-    /**
-     * @type {Map<number, { history: Array<{role: string, content: string}>, lastAccess: number }>}
-     */
     this._store = new Map();
-
-    // Evict sessions idle longer than TTL — runs every 15 minutes
     setInterval(() => this._evict(), 15 * 60 * 1000).unref();
   }
 
-  // ── Public API ────────────────────────────────────────────────────────
-
-  /**
-   * Returns a COPY of the message history for a user.
-   * Returns [] if the session has expired or doesn't exist.
-   * @param {number} userId
-   * @returns {Array<{role: string, content: string}>}
-   */
   getHistory(userId) {
     const entry = this._store.get(userId);
     if (!entry) return [];
 
-    if (Date.now() - entry.lastAccess > config.conversation.ttlMs) {
+    const ttl = entry.ttlMs || DEFAULT_TTL;
+    if (Date.now() - entry.lastAccess > ttl) {
       this._store.delete(userId);
       return [];
     }
 
     entry.lastAccess = Date.now();
-    return [...entry.history]; // shallow copy — callers must not mutate
+    return [...entry.history];
   }
 
-  /**
-   * Append one message to a user's history and trim to maxHistory.
-   * @param {number} userId
-   * @param {'user' | 'assistant'} role
-   * @param {string} content
-   */
-  push(userId, role, content) {
+  push(userId, role, content, ttlMs) {
     if (!this._store.has(userId)) {
-      this._store.set(userId, { history: [], lastAccess: Date.now() });
+      this._store.set(userId, { history: [], lastAccess: Date.now(), ttlMs: ttlMs || DEFAULT_TTL });
     }
 
-    const entry     = this._store.get(userId);
+    const entry = this._store.get(userId);
     entry.history.push({ role, content });
     entry.lastAccess = Date.now();
+    if (ttlMs) entry.ttlMs = ttlMs;
 
-    // Trim oldest messages when exceeding the cap
     const max = config.conversation.maxHistory;
     if (entry.history.length > max) {
       entry.history = entry.history.slice(-max);
@@ -64,44 +48,39 @@ class ConversationMemory {
   }
 
   /**
-   * Remove the most recently pushed message (used for AI error rollback).
-   * @param {number} userId
+   * Update TTL for an existing session without pushing a message.
    */
+  setTtl(userId, ttlMs) {
+    if (this._store.has(userId)) {
+      this._store.get(userId).ttlMs = ttlMs;
+    }
+  }
+
   popLast(userId) {
     const entry = this._store.get(userId);
     if (entry?.history.length) entry.history.pop();
   }
 
-  /**
-   * Wipe a user's entire conversation history.
-   * @param {number} userId
-   */
   clear(userId) {
     this._store.delete(userId);
     logger.debug('Conversation cleared', { userId });
   }
 
-  /**
-   * Number of messages in a user's active history.
-   * @param {number} userId
-   */
   length(userId) {
     return this.getHistory(userId).length;
   }
 
-  /** Total number of active user sessions currently in memory. */
   get activeSessions() {
     return this._store.size;
   }
 
-  // ── Private ───────────────────────────────────────────────────────────
-
   _evict() {
-    const now     = Date.now();
-    let   removed = 0;
+    const now = Date.now();
+    let removed = 0;
 
     for (const [id, entry] of this._store) {
-      if (now - entry.lastAccess > config.conversation.ttlMs) {
+      const ttl = entry.ttlMs || DEFAULT_TTL;
+      if (now - entry.lastAccess > ttl) {
         this._store.delete(id);
         removed++;
       }
