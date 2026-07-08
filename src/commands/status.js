@@ -38,7 +38,7 @@ module.exports = async (ctx) => {
 
     `<b>System</b>\n` +
     `AI service:      ${ai.isEnabled     ? '✅ Online'    : '❌ Offline'}\n` +
-    `Image Gen:       ${config.fal.apiKey ? '✅ Configured' : '❌ No FAL_KEY'}\n` +
+    `Image Gen:       ✅ Pollinations.ai (free)\n` +
     `Database:        ${db.isConnected() ? '✅ Connected' : '⚠️ Memory-only'}\n` +
     `Active sessions: ${memory.activeSessions}`;
 

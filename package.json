@@ -8,8 +8,6 @@
     "dev": "nodemon index.js --ext js,json"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0",
-    "@fal-ai/client": "^1.10.1",
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.17.0",
     "cheerio": "^1.2.0",
