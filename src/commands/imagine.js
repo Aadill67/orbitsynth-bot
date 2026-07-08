@@ -72,7 +72,9 @@ module.exports = async (ctx) => {
 
     logger.error("Image generation error", { userId, error: err.message });
 
-    // TEMPORARY - show real error
-    await ctx.reply(`❌ Real error: ${err.message}`);
+    const userMsg = err.message?.includes("402")
+      ? "❌ Pollinations rate limit hit. Wait a moment and try again."
+      : `❌ Image generation failed. Try a different prompt.`;
+    await ctx.reply(userMsg);
   }
 };

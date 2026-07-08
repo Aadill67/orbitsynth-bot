@@ -49,8 +49,7 @@ server.listen(PORT, () => {
   } else {
     try {
       await bot.telegram.callApi('deleteWebhook', { drop_pending_updates: true });
-      await bot.telegram.callApi('close');
-      logger.info('Cleared stale Telegram session');
+      logger.info('Cleared webhook');
     } catch (_) {}
     await new Promise(r => setTimeout(r, 2000));
 
