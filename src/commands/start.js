@@ -6,7 +6,7 @@ module.exports = async (ctx) => {
 
   const text = isNewUser
     ? `🚀 <b>Welcome to OrbitSynth Bot, ${name}!</b>\n\n` +
-      `I'm your AI-powered assistant, built on Claude.\n\n` +
+      `I'm your AI-powered assistant, built on Gemini.\n\n` +
       `<b>What I can do:</b>\n` +
       `• 🤖 Hold intelligent conversations with full memory\n` +
       `• ⚙️ Adapt my personality to your preference\n` +

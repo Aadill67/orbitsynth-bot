@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
 const ytCtx = require('../services/youtubeContext');
 const { getSessionKey } = require('../utils/session');
+const { aiUserMessage } = require('../utils/errors');
+const { escapeHtml } = require('../utils/format');
 
 module.exports = async (ctx) => {
   const sessionKey = getSessionKey(ctx);
@@ -42,13 +44,17 @@ module.exports = async (ctx) => {
 
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
     await ctx.replyWithHTML(
-      `🎬 <b>${info.title}</b>\n\n${summary}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
+      `🎬 <b>${escapeHtml(info.title)}</b>\n\n${escapeHtml(summary)}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="${escapeHtml('https://youtu.be/' + videoId)}">Watch on YouTube</a>`
     );
 
     logger.info('YouTube summarized', { videoId, title: info.title, transcriptLen: transcript.length });
   } catch (err) {
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-    logger.error('YouTube error', { videoId, error: err.message });
-    await ctx.reply('❌ Failed to summarize. The video may have no transcript or captions disabled.');
+    logger.error('YouTube error', { videoId, error: err.message, status: err.status });
+    if (err.isAIError) {
+      await ctx.reply(aiUserMessage(err.status, '❌ Failed to summarize. The video may have no transcript or captions disabled.'));
+    } else {
+      await ctx.reply('❌ Failed to summarize. The video may have no transcript or captions disabled.');
+    }
   }
 };

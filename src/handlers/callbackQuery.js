@@ -379,9 +379,9 @@ module.exports = async (ctx) => {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     let text = `📅 <b>7-Day Forecast — ${location}, ${country}</b>\n\n`;
     for (let i = 0; i < daily.time.length; i++) {
-      const d = new Date(daily.time[i] + 'T12:00:00');
+      const date = new Date(daily.time[i] + 'T00:00:00Z'); // UTC interpretation avoids server-TZ day shift
       const cond = WEATHER_CODES[daily.weather_code[i]] || `❓ ${daily.weather_code[i]}`;
-      text += `<b>${dayNames[d.getDay()]}</b> ${cond}  🌡️ ${daily.temperature_2m_min[i]}–${daily.temperature_2m_max[i]}°C\n`;
+      text += `<b>${dayNames[date.getUTCDay()]}</b> ${cond}  🌡️ ${daily.temperature_2m_min[i]}–${daily.temperature_2m_max[i]}°C\n`;
     }
     return safeEdit(ctx, text, weatherKeyboard());
   }

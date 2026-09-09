@@ -1,6 +1,7 @@
 const ai     = require('../services/ai');
 const logger = require('../utils/logger');
 const { getSessionKey } = require('../utils/session');
+const { aiUserMessage } = require('../utils/errors');
 
 /**
  * Handles incoming photos.
@@ -19,7 +20,7 @@ module.exports = async (ctx) => {
 
     // Basic size guard (Gemini inline data limit ~4MB)
     if (photo.file_size && photo.file_size > 4 * 1024 * 1024) {
-      return ctx.reply('⚠️ Photo is too large. Please send a photo under 4MB.');
+      return ctx.reply('⚠️ Photo is too large. Please send a photo under 4MB.').catch(() => {});
     }
 
     // Get the download URL from Telegram
@@ -50,7 +51,11 @@ module.exports = async (ctx) => {
     });
 
   } catch (err) {
-    logger.error('Photo handler error', { userId, error: err.message });
-    await ctx.reply('⚠️ Could not analyze the photo. Please try again with a clearer image.');
+    logger.error('Photo handler error', { userId, error: err.message, status: err.status });
+    if (err.isAIError) {
+      await ctx.reply(aiUserMessage(err.status, '⚠️ Could not analyze the photo. Please try again with a clearer image.')).catch(() => {});
+    } else {
+      await ctx.reply('⚠️ Could not analyze the photo. Please try again with a clearer image.').catch(() => {});
+    }
   }
 };

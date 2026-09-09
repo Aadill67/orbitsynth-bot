@@ -1,22 +1,23 @@
 # OrbitSynth Bot v2
 
-AI-powered Telegram bot built with **Node.js**, **Telegraf**, and **Claude AI**.
+AI-powered Telegram bot built with **Node.js**, **Telegraf**, and **Google Gemini**.
 
 ## What's New in v2
 
 | Feature | v1 | v2 |
 |---|---|---|
-| Architecture | Single file (index.js) | Modular (15 files, clear separation) |
-| AI | ❌ None | ✅ Claude via Anthropic API |
+| Architecture | Single file (index.js) | Modular (files, clear separation) |
+| AI | ❌ None | ✅ Gemini with model fallback chain |
 | Conversation memory | ❌ None | ✅ Per-user, TTL-based, in-memory |
 | Database | ❌ None | ✅ MongoDB (optional, bot works without it) |
 | Logging | console.log | ✅ Winston (console + file, JSON) |
 | Rate limiting | ❌ None | ✅ Sliding window, per-user |
 | Inline keyboards | ❌ None | ✅ Full menu system with callbacks |
-| Commands | /start only | ✅ /start /help /status /clear |
+| Commands | /start only | ✅ /start /help /status /clear /weather /crypto /search /yt /remind /imagine /fetch /translate /code |
 | AI personalities | ❌ None | ✅ Default / Concise / Detailed / Friendly |
 | Error handling | ❌ None | ✅ Global handler + user-friendly messages |
-| Graceful shutdown | Basic | ✅ DB disconnect + signal handling |
+| Security | ❌ None | ✅ SSRF-guarded URL fetching |
+| Reminders | ❌ None | ✅ Persistent (MongoDB) reminders |
 
 ---
 
@@ -40,7 +41,7 @@ Open `.env` and fill in:
 | Variable | Required | Description |
 |---|---|---|
 | `BOT_TOKEN` | ✅ Yes | From @BotFather on Telegram |
-| `ANTHROPIC_API_KEY` | Recommended | From console.anthropic.com |
+| `GEMINI_API_KEY` | Recommended | From aistudio.google.com — enables AI responses |
 | `MONGODB_URI` | Optional | Defaults to localhost:27017 |
 | `ADMIN_IDS` | Optional | Your Telegram user ID |
 
@@ -80,7 +81,7 @@ orbitsynth-bot/
 │   ├── models/
 │   │   └── User.js           ← Mongoose schema
 │   ├── services/
-│   │   ├── ai.js             ← Anthropic Claude wrapper
+│   │   ├── ai.js             ← Gemini AI wrapper (model fallback)
 │   │   ├── conversation.js   ← Per-user message history store
 │   │   └── database.js       ← MongoDB connection
 │   └── utils/
@@ -162,9 +163,11 @@ That's it.
 | Variable | Default | Description |
 |---|---|---|
 | `BOT_TOKEN` | — | **Required.** Telegram bot token |
-| `ANTHROPIC_API_KEY` | — | Enables AI chat features |
-| `AI_MODEL` | `claude-haiku-4-5-20251001` | Claude model to use |
+| `GEMINI_API_KEY` | — | Enables AI chat features |
+| `AI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
+| `AI_FALLBACK_MODELS` | `gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash` | Ordered fallback models |
 | `AI_MAX_TOKENS` | `1024` | Max tokens per AI response |
 | `MONGODB_URI` | `mongodb://127.0.0.1:27017/orbitsynth` | MongoDB connection string |
 | `ADMIN_IDS` | — | Comma-separated Telegram IDs (bypass rate limit) |
+| `WEBHOOK_URL` | — | Set to your public URL to use webhooks instead of polling |
 | `LOG_LEVEL` | `info` | Winston log level: error/warn/info/debug |

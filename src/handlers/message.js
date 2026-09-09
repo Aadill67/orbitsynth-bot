@@ -3,24 +3,27 @@ const logger = require('../utils/logger');
 const { extractVideoId, getTranscript, getVideoInfo } = require('../services/youtube');
 const ytCtx = require('../services/youtubeContext');
 const { getSessionKey, shouldRespondInGroup } = require('../utils/session');
+const { aiUserMessage } = require('../utils/errors');
+const { escapeHtml } = require('../utils/format');
 
 module.exports = async (ctx) => {
   const sessionKey = getSessionKey(ctx);
   const text   = ctx.message.text;
 
   if (text.startsWith('/')) {
-    return ctx.reply(`❓ Unknown command. Use /help to see available commands.`);
+    return ctx.reply(`❓ Unknown command. Use /help to see available commands.`).catch(() => {});
   }
 
   if (!(await shouldRespondInGroup(ctx))) return;
 
   const videoId = extractVideoId(text);
   if (videoId) {
-    const waitMsg = await ctx.reply(`🎬 Detected YouTube link! Fetching transcript...`);
+    const waitMsg = await ctx.reply(`🎬 Detected YouTube link! Fetching transcript...`).catch(() => null);
+    if (!waitMsg) return;
 
     try {
       const info = await getVideoInfo(videoId);
-      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `📥 Getting transcript for: ${info.title.slice(0, 50)}...`);
+      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `📥 Getting transcript for: ${escapeHtml(info.title.slice(0, 50))}...`).catch(() => {});
 
       const transcript = await getTranscript(videoId);
 
@@ -32,7 +35,7 @@ module.exports = async (ctx) => {
       const truncated = transcript.slice(0, 3000);
       const aiPrompt = `Summarize this YouTube video transcript in 3-5 bullet points.\n\nTitle: ${info.title}\n\nTranscript: ${truncated}`;
 
-      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `🤖 Generating AI summary...`);
+      await ctx.telegram.editMessageText(ctx.chat.id, waitMsg.message_id, null, `🤖 Generating AI summary...`).catch(() => {});
 
       const summary = await ai.chat(sessionKey, aiPrompt, 'concise');
 
@@ -40,13 +43,13 @@ module.exports = async (ctx) => {
 
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(
-        `🎬 <b>${info.title}</b>\n\n${summary}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="https://youtu.be/${videoId}">Watch on YouTube</a>`
+        `🎬 <b>${escapeHtml(info.title)}</b>\n\n${escapeHtml(summary)}\n\n💬 <i>You can now ask follow-up questions about this video!</i>\n🔗 <a href="${escapeHtml('https://youtu.be/' + videoId)}">Watch on YouTube</a>`
       );
 
       logger.info('YouTube auto-summarized', { videoId, title: info.title });
     } catch (err) {
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
-      logger.error('YouTube auto-summary error', { videoId, error: err.message });
+      logger.error('YouTube auto-summary error', { videoId, error: err.message, status: err.status });
       await ctx.reply('❌ Could not summarize this video. Try /yt <url> for more details.');
     }
     return;
@@ -56,7 +59,7 @@ module.exports = async (ctx) => {
     ?? ctx.dbUser?.preferences?.aiPersonality
     ?? 'default';
 
-  await ctx.sendChatAction('typing');
+  await ctx.sendChatAction('typing').catch(() => {});
 
   try {
     const ytData = ytCtx.get(sessionKey);
@@ -68,18 +71,6 @@ module.exports = async (ctx) => {
 
   } catch (err) {
     logger.error('Message handler: AI error', { userId: ctx.from.id, error: err.message, status: err.status });
-
-    let userMsg;
-    if (err.status === 429) {
-      userMsg = '⏳ The AI is temporarily overloaded. Please try again in a moment.';
-    } else if (err.status === 401) {
-      userMsg = '🔑 AI authentication failed. Please contact the bot admin.';
-    } else if (err.status === 529) {
-      userMsg = '🔧 The AI service is currently overloaded. Please wait a few seconds and try again.';
-    } else {
-      userMsg = '⚠️ Something went wrong while generating a response. Please try again.';
-    }
-
-    await ctx.reply(userMsg);
+    await ctx.reply(aiUserMessage(err.status)).catch(() => {});
   }
 };

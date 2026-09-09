@@ -1,3 +1,6 @@
+const { fetchWithTimeout } = require('./http');
+const { YoutubeTranscript } = require('youtube-transcript');
+
 function extractVideoId(url) {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
@@ -11,18 +14,53 @@ function extractVideoId(url) {
 }
 
 async function getVideoInfo(videoId) {
-  const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitSynthBot/2.0)' },
-  });
-  const html = await res.text();
-  const title = html.match(/<title>([^<]*)<\/title>/)?.[1]?.replace(' - YouTube', '') || 'Unknown';
-  return { title };
+  // Primary: noembed oEmbed (fast, free, no key, stable). Tried first so the
+  // bot doesn't block up to 12s scraping a heavy YouTube watch page.
+  try {
+    const res = await fetchWithTimeout(
+      `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`,
+      {}, 8000
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.title) return { title: data.title };
+    }
+  } catch (_) {}
+
+  // Fallback: scrape the watch page title.
+  try {
+    const res = await fetchWithTimeout(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitSynthBot/2.0)' },
+    }, 8000);
+    if (res.ok) {
+      const html = await res.text();
+      const title = html.match(/<title>([^<]*)<\/title>/)?.[1]?.replace(' - YouTube', '') || 'Unknown';
+      if (title !== 'Unknown') return { title };
+    }
+  } catch (_) {}
+
+  return { title: 'Unknown' };
 }
 
+/**
+ * Get the transcript for a video.
+ * Primary: scrape `captionTracks` from the watch page.
+ * Fallback: the `youtube-transcript` package (its own endpoint).
+ */
 async function getTranscript(videoId) {
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+  try {
+    return await scrapeTranscript(videoId);
+  } catch (err) {
+    const segments = await YoutubeTranscript.fetchTranscript(videoId);
+    if (!segments?.length) throw new Error('No transcript available');
+    return segments.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+async function scrapeTranscript(videoId) {
+  const pageRes = await fetchWithTimeout(`https://www.youtube.com/watch?v=${videoId}`, {
     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-  });
+  }, 15000);
   const html = await pageRes.text();
 
   const match = html.match(/"captionTracks":\s*(\[.*?\])/);
@@ -42,7 +80,7 @@ async function getTranscript(videoId) {
   }
   if (!trackUrl) throw new Error('No transcript available');
 
-  const transcriptRes = await fetch(trackUrl);
+  const transcriptRes = await fetchWithTimeout(trackUrl, {}, 15000);
   if (!transcriptRes.ok) throw new Error(`Transcript fetch failed: ${transcriptRes.status}`);
   const xml = await transcriptRes.text();
 
@@ -50,7 +88,9 @@ async function getTranscript(videoId) {
   const regex = /<text[^>]*>([\s\S]*?)<\/text>/g;
   let xmlMatch;
   while ((xmlMatch = regex.exec(xml)) !== null) {
-    texts.push(xmlMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+    texts.push(xmlMatch[1]
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
   }
 
   if (texts.length === 0) throw new Error('No transcript available');
