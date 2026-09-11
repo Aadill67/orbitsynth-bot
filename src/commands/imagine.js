@@ -2,6 +2,7 @@
 
 const { generateImageWithFlux } = require("../services/imageGenerator");
 const logger = require("../utils/logger");
+const { escapeHtml } = require("../utils/format");
 
 module.exports = async (ctx) => {
   const userId = ctx.from.id;
@@ -20,29 +21,26 @@ module.exports = async (ctx) => {
 
   try {
     waitMsg = await ctx.replyWithHTML(
-      `🎨 Generating...\n📝 <i>${prompt}</i>\n\n⏳ ~5-10 seconds...`,
+      `🎨 Generating...\n📝 <i>${escapeHtml(prompt)}</i>\n\n⏳ ~5-10 seconds...`,
     );
     await ctx.sendChatAction("upload_photo");
 
-    // 1. Call our new HuggingFace FLUX service
     const imageBuffer = await generateImageWithFlux(prompt);
 
-    // 2. Delete the "Generating..." loading message
     if (waitMsg)
       await ctx.telegram
         .deleteMessage(ctx.chat.id, waitMsg.message_id)
         .catch(() => {});
 
-    // 3. Send the actual image back to the user
     await ctx.replyWithPhoto(
       { source: imageBuffer, filename: "generated.jpg" },
       {
         parse_mode: "HTML",
-        caption: `🎨 <b>Generated</b>\n📝 <i>${prompt}</i>`,
+        caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(prompt)}</i>`,
       },
     );
 
-    logger.info("Image generated via FLUX", {
+    logger.info("Image generated", {
       userId,
       prompt: prompt.slice(0, 60),
     });
