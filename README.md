@@ -164,8 +164,8 @@ That's it.
 |---|---|---|
 | `BOT_TOKEN` | — | **Required.** Telegram bot token |
 | `GEMINI_API_KEY` | — | Enables AI chat features |
-| `AI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
-| `AI_FALLBACK_MODELS` | `gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash` | Ordered fallback models |
+| `AI_MODEL` | `gemini-3.6-flash` | Gemini model to use |
+| `AI_FALLBACK_MODELS` | `gemini-3.6-flash,gemini-3-flash-preview` | Ordered fallback models (2026: only gemini-3.x models exist) |
 | `AI_MAX_TOKENS` | `1024` | Max tokens per AI response |
 | `MONGODB_URI` | `mongodb://127.0.0.1:27017/orbitsynth` | MongoDB connection string |
 | `ADMIN_IDS` | — | Comma-separated Telegram IDs (bypass rate limit) |

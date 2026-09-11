@@ -26,14 +26,24 @@ Keep responses friendly and easy to understand for all skill levels.`,
 // Errors we can safely retry (quota/traffic/network).
 const RETRYABLE = new Set([429, 500, 502, 503, 529, 0]);
 
+// Hard ceiling for a single Gemini call (connect + generate). Prevents the
+// process from hanging forever if Google's API stalls.
+const REQUEST_TIMEOUT_MS = 60_000;
+
+// Cooldown before a "model not found"-style failure is re-checked.
+// 404 / "no longer available" are essentially permanent, so use a long TTL.
+const DEAD_MODEL_NOT_FOUND_TTL = 6 * 60 * 60 * 1000; // 6 h
+const DEAD_MODEL_RETRY_TTL     = 30 * 60 * 1000;     // 30 min for transient errors
+
 class AIService {
   constructor() {
     this._enabled = !!config.ai.apiKey;
     this._client  = null;
     this._deadModels   = new Map(); // model → timestamp until which it is skipped
     this._lastGoodModel = null;
-    this._maxAttempts  = 3;
-    this._backoffMs    = 1000;
+    this._maxAttempts  = 2;
+    this._backoffMs    = 1200;
+    this._preflightDone = false;
 
     if (this._enabled) {
       this._client = new GoogleGenerativeAI(config.ai.apiKey);
@@ -48,6 +58,9 @@ class AIService {
 
   get isEnabled() { return this._enabled; }
 
+  /** Public wrapper so other modules can kick off the startup model check. */
+  preflight() { return this._preflight(); }
+
   /** Ordered list of models to try: last-known-good → configured → fallbacks. */
   _modelChain() {
     const chain = [];
@@ -57,8 +70,76 @@ class AIService {
     return [...new Set(chain)].filter(Boolean);
   }
 
-  _markDead(model) {
-    this._deadModels.set(model, Date.now() + 30 * 60 * 1000); // re-check in 30 min
+  _markDead(model, ttlMs = DEAD_MODEL_RETRY_TTL) {
+    this._deadModels.set(model, Date.now() + ttlMs);
+  }
+
+  /**
+   * Ping every model in the chain once at startup. Models that respond OK are
+   * remembered (fast path); dead models are marked dead so the very first user
+   * message is not slowed down by a full retry cycle. Failures are logged so
+   * Render/Vercel logs tell you exactly which model names are wrong.
+   */
+  async _preflight() {
+    if (this._preflightDone || !this._enabled) return;
+    this._preflightDone = true;
+
+    const candidates = [...new Set([config.ai.model, ...config.ai.fallbackModels])].filter(Boolean);
+    for (const model of candidates) {
+      // Marked dead recently → skip, keep the existing cooldown.
+      if (this._isDead(model)) continue;
+      try {
+        await this._generateOnce(model, 'Reply with the single word: OK');
+        if (!this._lastGoodModel) this._lastGoodModel = model;
+        logger.info('AI preflight OK', { model });
+      } catch (err) {
+        // Only "model not found" is permanent — mark it dead. Transient
+        // failures (quota/traffic/timeout) are left alive so the runtime
+        // retry/backoff logic handles them normally.
+        if (err.status === 404) {
+          this._markDead(model, DEAD_MODEL_NOT_FOUND_TTL);
+          logger.warn('AI preflight: model unavailable', {
+            model, status: err.status || 500, error: err.message,
+          });
+        } else {
+          logger.warn('AI preflight: transient check failed', {
+            model, status: err.status || 500, error: err.message,
+          });
+        }
+      }
+    }
+  }
+
+  _isDead(model) {
+    const until = this._deadModels.get(model);
+    return !!(until && until > Date.now());
+  }
+
+  /**
+   * One attempt on one model, wrapped in a hard timeout so no call can hang
+   * the process forever.
+   */
+  async _generateOnce(model, text, modelOpts = {}, startChat = {}) {
+    const modelObj = this._client.getGenerativeModel({
+      model,
+      ...modelOpts,
+      requestOptions: { timeout: REQUEST_TIMEOUT_MS },
+    });
+
+    const promise = modelObj.startChat
+      ? modelObj.startChat(startChat).sendMessage(text)
+      : modelObj.generateContent(text);
+
+    const result = await Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(this._fail(0, `AI request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`)), REQUEST_TIMEOUT_MS + 2000)
+      ),
+    ]);
+
+    const reply = result?.response?.text?.() ?? '';
+    if (!reply) throw this._fail(500, 'Empty AI response');
+    return reply;
   }
 
   _statusOf(err) {
@@ -66,7 +147,8 @@ class AIService {
     const msg = String(err?.message || '');
     if (msg.includes('[429') || msg.includes('Quota exceeded'))  return 429;
     if (msg.includes('[503') || msg.includes('[529'))             return 503;
-    if (msg.includes('[404') || msg.includes('is not found'))     return 404;
+    if (msg.includes('[404') || msg.includes('is not found')
+        || msg.includes('no longer available') || msg.includes('not found for API')) return 404;
     if (msg.includes('[400'))                                     return 400;
     if (msg.includes('[401') || msg.includes('[403'))             return 403;
     if (msg.includes('fetch failed') || msg.includes('Timeout'))  return 0;
@@ -87,30 +169,26 @@ class AIService {
    */
   async _generate(modelOpts, payload) {
     const models = this._modelChain();
+    const tried  = [];
     let lastErr = null;
 
     for (const model of models) {
-      const deadUntil = this._deadModels.get(model);
-      if (deadUntil && deadUntil > Date.now()) continue;
+      if (this._isDead(model)) continue;
 
       for (let attempt = 0; attempt < this._maxAttempts; attempt++) {
+        const attemptLabel = `model=${model} attempt=${attempt + 1}/${this._maxAttempts}`;
         try {
-          const modelObj = this._client.getGenerativeModel({ model, ...modelOpts });
-          const result = modelObj.startChat
-            ? await modelObj.startChat(payload.startChat).sendMessage(payload.text)
-            : await modelObj.generateContent(payload.text);
-
-          const reply = result.response?.text?.() ?? '';
-          if (!reply) throw this._fail(500, 'Empty AI response');
+          const reply = await this._generateOnce(model, payload.text, modelOpts, payload.startChat);
           this._lastGoodModel = model;
           return reply;
         } catch (err) {
           lastErr = err;
+          tried.push(attempt === 0 ? model : `${model}#${attempt + 1}`);
           const status = this._statusOf(err);
 
-          // Model missing/unsupported → skip to next model (re-check later).
+          // Model missing/unsupported → skip to next model (re-check much later).
           if (status === 404) {
-            this._markDead(model);
+            this._markDead(model, DEAD_MODEL_NOT_FOUND_TTL);
             logger.warn('AI model unavailable, trying next model', { model, error: err.message });
             break;
           }
@@ -121,7 +199,7 @@ class AIService {
             throw this._fail(status, 'AI authentication failed');
           }
 
-          // Quota/rate/overload/network → retry with backoff, then next model.
+          // Quota/rate/overload/network/timeout → retry with backoff, then next model.
           if (RETRYABLE.has(status)) {
             if (attempt < this._maxAttempts - 1) {
               const wait = this._backoffMs * (attempt + 1) * (status === 429 ? 2 : 1);
@@ -129,18 +207,23 @@ class AIService {
               await sleep(wait);
               continue;
             }
-            // Out of attempts for this model → try the next one.
             logger.warn('AI model exhausted attempts, trying next', { model, status });
             break;
           }
 
           // Anything else (400 bad request etc.) → surface immediately.
-          throw this._fail(status || 500, err.message);
+          throw this._fail(status || 500, `${err.message} (${attemptLabel})`);
         }
       }
     }
 
-    throw this._fail(lastErr?.status || 500, lastErr?.message || 'All AI models failed');
+    const err = this._fail(lastErr?.status || 500, lastErr?.message || 'All AI models failed');
+    logger.error('AI all models failed', {
+      attempted: tried.join(' → '),
+      status: err.status,
+      error: err.message,
+    });
+    return Promise.reject(err);
   }
 
   /**

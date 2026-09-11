@@ -12,10 +12,11 @@ const config = {
   },
   ai: {
     apiKey: process.env.GEMINI_API_KEY || null,
-    model:  process.env.AI_MODEL || 'gemini-2.5-flash',
+    model:  process.env.AI_MODEL || 'gemini-3.6-flash',
     // If the configured model is down/disabled, the AI service walks this
     // chain until one responds. Keep known-good, stable model names here.
-    fallbackModels: (process.env.AI_FALLBACK_MODELS || 'gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash')
+    // (As of 2026, gemini-2.x/1.x models are retired by Google.)
+    fallbackModels: (process.env.AI_FALLBACK_MODELS || 'gemini-3.6-flash,gemini-3-flash-preview')
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),

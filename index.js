@@ -145,6 +145,10 @@ async function boot() {
       await db.connect();
       await startHttpServer();
 
+      // Verify which AI models actually respond so the first user message
+      // is never slowed by dead-model retries. Safe no-op if AI is disabled.
+      await ai.preflight?.();
+
       if (WEBHOOK_URL) {
         const fullUrl = `${WEBHOOK_URL.replace(/\/+$/, '')}/webhook`;
         await bot.telegram.deleteWebhook({ drop_pending_updates: true });
