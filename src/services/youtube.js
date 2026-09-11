@@ -14,11 +14,10 @@ function extractVideoId(url) {
 }
 
 async function getVideoInfo(videoId) {
-  // Primary: noembed oEmbed (fast, free, no key, stable). Tried first so the
-  // bot doesn't block up to 12s scraping a heavy YouTube watch page.
+  // Primary: YouTube's own oEmbed API (fast, free, no key, stable).
   try {
     const res = await fetchWithTimeout(
-      `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`,
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`,
       {}, 8000
     );
     if (res.ok) {
