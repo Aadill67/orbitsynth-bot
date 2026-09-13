@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 /**
  * Telegraf's global error boundary — passed to bot.catch().
  * Logs the full error and attempts to send a friendly reply to the user.
+ * Only fires when an error escapes a handler (handlers should catch their own).
  *
  * @param {Error}  err Thrown error
  * @param {object} ctx Telegraf context (may be partially constructed)
@@ -16,11 +17,12 @@ module.exports = (err, ctx) => {
     update:     JSON.stringify(ctx?.update)?.slice(0, 200),
   });
 
-  // Best-effort user notification
+  // Best-effort user notification — never tell the user to "reset the bot",
+  // that is admin jargon and scares people.
   try {
     ctx?.reply?.(
-      '⚠️ Something unexpected went wrong on my end.\n' +
-      'Please try again, or use /start to reset the bot.'
+      '⚠️ Something went wrong on my end.\n' +
+      'Please try again in a moment. If it keeps happening, use /ping.'
     );
   } catch (_) {
     // If even this reply fails, there's nothing more we can do

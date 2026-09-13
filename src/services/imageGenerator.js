@@ -3,6 +3,10 @@ const { fetchWithTimeout, sleep } = require("./http");
 
 const CONTENT_TYPES_OK = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
+/** Cap a single Pollinations call — cached requests return in ~1-3s,
+ *  cold ones can legitimately take 35-60s. Never block the user longer. */
+const ATTEMPT_TIMEOUT_MS = 60_000;
+
 /** Cheap magic-byte check so an HTML/JSON error page can never be sent as a photo. */
 function looksLikeImage(buffer) {
   const hex = buffer.subarray(0, 12).toString('hex');
@@ -21,7 +25,8 @@ async function generateImageWithFlux(prompt) {
 
   const seed = Math.floor(Math.random() * 1000000);
 
-  // Retry twice — Pollinations is free and occasionally returns 402/5xx.
+  // Retry a couple of times — Pollinations is free and occasionally returns
+  // 402/5xx or a stalled connection. Each attempt is capped at 60s.
   let lastErr = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -31,7 +36,7 @@ async function generateImageWithFlux(prompt) {
 
       const response = await fetchWithTimeout(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitSynthBot/2.0)' },
-      }, 90_000);
+      }, ATTEMPT_TIMEOUT_MS);
 
       if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
 
@@ -50,9 +55,11 @@ async function generateImageWithFlux(prompt) {
       return buffer;
     } catch (err) {
       lastErr = err;
+      // 402/429 are rate limits — retrying immediately won't help, surface now.
+      if (err.message?.includes('402') || err.message?.includes('429')) break;
       if (attempt < 3) {
         logger.warn("Pollinations attempt failed, retrying", { attempt, error: err.message });
-        await sleep(2000 * attempt);
+        await sleep(1500 * attempt);
       }
     }
   }
