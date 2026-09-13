@@ -38,9 +38,12 @@ module.exports = async (ctx) => {
 
     `<b>System</b>\n` +
     `AI service:      ${ai.isEnabled     ? '✅ Online'    : '❌ Offline'}\n` +
+    `AI model:        <code>${ai.lastGoodModel || config.ai.model}</code>\n` +
+    `Streaming:       ${ai.isStreamable ? '✅ On' : '—'}\n` +
     `Image Gen:       ✅ Pollinations.ai (free)\n` +
     `Database:        ${db.isConnected() ? '✅ Connected' : '⚠️ Memory-only'}\n` +
-    `Active sessions: ${memory.activeSessions}`;
+    `Active sessions: ${memory.activeSessions}\n` +
+    `Uptime:          <code>${Math.floor(process.uptime() / 86400)}d ${Math.floor((process.uptime() % 86400) / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m</code>`;
 
   await ctx.replyWithHTML(text, mainMenuKeyboard());
 };

@@ -30,6 +30,10 @@ const RETRYABLE = new Set([429, 500, 502, 503, 529, 0]);
 // process from hanging forever if Google's API stalls.
 const REQUEST_TIMEOUT_MS = 60_000;
 
+// Ceiling for a single streaming-chunk wait. Guards against a stalled network
+// mid-stream so a user's reply never hangs forever.
+const STREAM_CHUNK_TIMEOUT_MS = 45_000;
+
 // Cooldown before a "model not found"-style failure is re-checked.
 // 404 / "no longer available" are essentially permanent, so use a long TTL.
 const DEAD_MODEL_NOT_FOUND_TTL = 6 * 60 * 60 * 1000; // 6 h
@@ -57,6 +61,11 @@ class AIService {
   }
 
   get isEnabled() { return this._enabled; }
+
+  get isStreamable() { return this._enabled && config.ai.stream; }
+
+  /** Model that last produced a good reply (used by /status + /health). */
+  get lastGoodModel() { return this._lastGoodModel; }
 
   /** Public wrapper so other modules can kick off the startup model check. */
   preflight() { return this._preflight(); }
@@ -224,6 +233,161 @@ class AIService {
       error: err.message,
     });
     return Promise.reject(err);
+  }
+
+  _raceTimeout(promise, ms, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(this._fail(0, message)), ms)
+      ),
+    ]);
+  }
+
+  /** Open a streaming chat session on `model` (hard timeout on connect). */
+  async _openStream(model, text, modelOpts = {}, startChat = {}) {
+    const modelObj = this._client.getGenerativeModel({
+      model,
+      ...modelOpts,
+      requestOptions: { timeout: REQUEST_TIMEOUT_MS },
+    });
+    const result = await this._raceTimeout(
+      modelObj.startChat(startChat).sendMessageStream(text),
+      REQUEST_TIMEOUT_MS + 2000,
+      `AI stream timed out opening ${REQUEST_TIMEOUT_MS / 1000}s`
+    );
+    return result; // { stream: AsyncGenerator, response: Promise }
+  }
+
+  /**
+   * Core streaming generation with model fallback + retry, mirroring
+   * `_generate` but yielding partial text as it arrives. Yields the
+   * accumulated reply on every chunk so the caller can render live text;
+   * the final authoritative value is the aggregated response text.
+   */
+  async *_generateStream(modelOpts, payload) {
+    const models = this._modelChain();
+    const tried  = [];
+    let lastErr = null;
+
+    for (const model of models) {
+      if (this._isDead(model)) continue;
+
+      for (let attempt = 0; attempt < this._maxAttempts; attempt++) {
+        try {
+          const result   = await this._openStream(model, payload.text, modelOpts, payload.startChat);
+          const iterator = result.stream[Symbol.asyncIterator]();
+          this._lastGoodModel = model;
+
+          let acc = '';
+          for (;;) {
+            const { done, value } = await this._raceTimeout(
+              iterator.next(),
+              STREAM_CHUNK_TIMEOUT_MS,
+              `AI stream stalled >${STREAM_CHUNK_TIMEOUT_MS / 1000}s`
+            );
+            if (done) break;
+            const t = value?.text?.() || '';
+            if (t) {
+              acc += t;
+              yield acc; // live partial reply
+            }
+          }
+
+          // Aggregated response text is the authoritative final answer.
+          const full = (await result.response)?.text?.() || acc;
+          if (full) {
+            yield full;
+            return;
+          }
+          throw this._fail(500, 'Empty AI response');
+        } catch (err) {
+          lastErr = err;
+          tried.push(attempt === 0 ? model : `${model}#${attempt + 1}`);
+          const status = this._statusOf(err);
+
+          if (status === 404) {
+            this._markDead(model, DEAD_MODEL_NOT_FOUND_TTL);
+            logger.warn('AI stream model unavailable, trying next', { model, error: err.message });
+            break;
+          }
+          if (status === 401 || status === 403) {
+            logger.error('AI stream authentication failed', { status, error: err.message });
+            throw this._fail(status, 'AI authentication failed');
+          }
+          if (RETRYABLE.has(status)) {
+            if (attempt < this._maxAttempts - 1) {
+              const wait = this._backoffMs * (attempt + 1) * (status === 429 ? 2 : 1);
+              logger.warn('AI stream retry', { model, attempt: attempt + 1, status, waitMs: wait });
+              await sleep(wait);
+              continue;
+            }
+            logger.warn('AI stream model exhausted attempts, trying next', { model, status });
+            break;
+          }
+          throw this._fail(status || 500, `${err.message} (streaming)`);
+        }
+      }
+    }
+
+    const err = this._fail(lastErr?.status || 500, lastErr?.message || 'All AI models failed');
+    logger.error('AI stream all models failed', {
+      attempted: tried.join(' → '),
+      status: err.status,
+      error: err.message,
+    });
+    throw err;
+  }
+
+  /**
+   * Send a text message to Gemini and stream the reply back token-by-token.
+   * Usage: for await (const partial of ai.streamChat(...)) { ... }
+   * Same memory handling + personalities as chat(). Callers must consume
+   * until completion; a terminal error rejects after yielding partial text.
+   */
+  async *streamChat(userId, text, personality = 'default', context = '') {
+    if (!this._enabled) {
+      yield '🔇 AI is not configured. Add GEMINI_API_KEY to .env to enable.';
+      return;
+    }
+
+    const finalText = context ? `${context}\n\nUser question: ${text}` : text;
+
+    memory.push(userId, 'user', finalText);
+
+    const allHistory      = memory.getHistory(userId);
+    const previousHistory = this._toGeminiHistory(allHistory.slice(0, -1));
+    const system          = SYSTEM_PROMPTS[personality] ?? SYSTEM_PROMPTS.default;
+
+    const t0 = Date.now();
+    let lastChunk = '';
+
+    try {
+      for await (const chunk of this._generateStream(
+        { systemInstruction: system },
+        {
+          text: finalText,
+          startChat: {
+            history:          previousHistory,
+            generationConfig: { maxOutputTokens: config.ai.maxTokens },
+          },
+        }
+      )) {
+        lastChunk = chunk;
+        yield chunk;
+      }
+
+      memory.push(userId, 'assistant', lastChunk);
+
+      logger.info('AI response streamed', {
+        userId, ms: Date.now() - t0, personality,
+        model: this._lastGoodModel, historyDepth: memory.length(userId),
+      });
+    } catch (err) {
+      memory.popLast(userId);
+      logger.error('AI stream service error', { userId, status: err.status, error: err.message });
+      throw err;
+    }
   }
 
   /**

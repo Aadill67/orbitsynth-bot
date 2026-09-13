@@ -1,6 +1,19 @@
 const logger = require("../utils/logger");
 const { fetchWithTimeout, sleep } = require("./http");
 
+const CONTENT_TYPES_OK = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+/** Cheap magic-byte check so an HTML/JSON error page can never be sent as a photo. */
+function looksLikeImage(buffer) {
+  const hex = buffer.subarray(0, 12).toString('hex');
+  return (
+    hex.startsWith('ffd8ff') ||                       // JPEG
+    hex.startsWith('89504e47') ||                     // PNG
+    (hex.startsWith('52494646') && hex.includes('57454250')) || // WEBP
+    (hex.startsWith('47494638'))                      // GIF
+  );
+}
+
 async function generateImageWithFlux(prompt) {
   logger.info("Generating image with Pollinations", {
     prompt: prompt.slice(0, 60),
@@ -23,15 +36,18 @@ async function generateImageWithFlux(prompt) {
       if (!response.ok) throw new Error(`Pollinations returned ${response.status}`);
 
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.startsWith('image/')) {
+      if (!CONTENT_TYPES_OK.has(contentType.split(';')[0].trim())) {
         throw new Error(`Pollinations returned non-image content (${contentType})`);
       }
 
-      const buffer = await response.arrayBuffer();
+      const buffer = Buffer.from(await response.arrayBuffer());
       if (buffer.byteLength < 1000) throw new Error('Pollinations returned an empty image');
+      if (!looksLikeImage(buffer)) {
+        throw new Error(`Pollinations returned an invalid image file (${buffer.byteLength}b)`);
+      }
 
       logger.info("Image generated successfully via Pollinations", { attempt });
-      return Buffer.from(buffer);
+      return buffer;
     } catch (err) {
       lastErr = err;
       if (attempt < 3) {

@@ -21,6 +21,16 @@ const config = {
       .map(s => s.trim())
       .filter(Boolean),
     maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1024', 10),
+    // Stream replies to the user token-by-token (big perceived speed win).
+    // The reply placeholder is edited ~every streamEditMs so the user sees
+    // text flowing in instead of a long silent wait. Disable by setting
+    // AI_STREAM=false.
+    stream:       process.env.AI_STREAM !== 'false',
+    streamEditMs: parseInt(process.env.AI_STREAM_EDIT_MS || '1500', 10),
+    // Minimum interval between "typing..." chat actions. Telegram drops them
+    // after ~5s of inactivity, so a sustained loop stops the indicator
+    // flickering off during long generations.
+    typingMs: parseInt(process.env.AI_TYPING_MS || '4000', 10),
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY || null,

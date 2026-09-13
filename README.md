@@ -13,7 +13,7 @@ AI-powered Telegram bot built with **Node.js**, **Telegraf**, and **Google Gemin
 | Logging | console.log | ✅ Winston (console + file, JSON) |
 | Rate limiting | ❌ None | ✅ Sliding window, per-user |
 | Inline keyboards | ❌ None | ✅ Full menu system with callbacks |
-| Commands | /start only | ✅ /start /help /status /clear /weather /crypto /search /yt /remind /imagine /fetch /translate /code |
+| Commands | /start only | ✅ /start /help /status /clear /ping /weather /crypto /search /yt /remind /imagine /fetch /translate /code |
 | AI personalities | ❌ None | ✅ Default / Concise / Detailed / Friendly |
 | Error handling | ❌ None | ✅ Global handler + user-friendly messages |
 | Security | ❌ None | ✅ SSRF-guarded URL fetching |
@@ -167,6 +167,9 @@ That's it.
 | `AI_MODEL` | `gemini-3.6-flash` | Gemini model to use |
 | `AI_FALLBACK_MODELS` | `gemini-3.6-flash,gemini-3-flash-preview` | Ordered fallback models (2026: only gemini-3.x models exist) |
 | `AI_MAX_TOKENS` | `1024` | Max tokens per AI response |
+| `AI_STREAM` | `true` | Stream AI replies token-by-token (live-updating messages) |
+| `AI_STREAM_EDIT_MS` | `1500` | Refresh interval while streaming a reply |
+| `AI_TYPING_MS` | `4000` | Re-send the "typing..." indicator every N ms during long replies |
 | `MONGODB_URI` | `mongodb://127.0.0.1:27017/orbitsynth` | MongoDB connection string |
 | `ADMIN_IDS` | — | Comma-separated Telegram IDs (bypass rate limit) |
 | `WEBHOOK_URL` | — | Set to your public URL to use webhooks instead of polling |

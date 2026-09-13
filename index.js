@@ -4,10 +4,12 @@ config.validate();
 const bot    = require('./src/bot');
 const db     = require('./src/services/database');
 const ai     = require('./src/services/ai');
+const memory = require('./src/services/conversation');
 const logger = require('./src/utils/logger');
 const http   = require('http');
 
-const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
+const VERSION       = require('./package.json').version;
+const WEBHOOK_URL   = process.env.WEBHOOK_URL || '';
 const PREFERRED_PORT = config.server.port;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -55,12 +57,18 @@ const createServer = () => http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      status:  'ok',
-      uptime:  process.uptime(),
-      bot:     bot.botInfo?.username ?? 'unknown',
-      ai:      ai.isEnabled ? 'enabled' : 'disabled',
-      db:      db.isConnected() ? 'connected' : 'memory-only',
-      port:    httpPort,
+      status:         'ok',
+      version:        VERSION,
+      uptime:         process.uptime(),
+      bot:            bot.botInfo?.username ?? 'unknown',
+      mode:           WEBHOOK_URL ? 'webhook' : 'polling',
+      ai:             ai.isEnabled ? 'enabled' : 'disabled',
+      model:          ai.lastGoodModel || config.ai.model,
+      fallback:       config.ai.fallbackModels.join(','),
+      streaming:      ai.isStreamable,
+      db:             db.isConnected() ? 'connected' : 'memory-only',
+      activeSessions: memory.activeSessions,
+      port:           httpPort,
     }));
     return;
   }
@@ -137,6 +145,44 @@ setInterval(async () => {
   }
 }, 60_000).unref();
 
+/* ── Bot identity ──────────────────────────────────────────────────────── */
+// In webhook mode Telegraf never calls getMe(), so we fetch it once and
+// store it. This fixes /health showing "unknown" AND makes group @mention
+// detection work (it relies on ctx.botInfo?.username).
+async function refreshBotInfo() {
+  try {
+    const me = await bot.telegram.getMe();
+    bot.botInfo = me;
+    bot.telegram.botInfo = me;
+    logger.info('Bot identity confirmed', { username: me.username, id: me.id });
+  } catch (err) {
+    logger.warn('getMe failed', { error: err.message });
+  }
+}
+
+/* ── Webhook watchdog (24/7 self-healing) ──────────────────────────────── */
+// If the webhook drifts, gets cleared, or Render restarts mid-boot, the bot
+// silently loses every update. Re-verify + re-set periodically so a dropped
+// webhook can never take the bot offline again.
+async function ensureWebhook() {
+  if (!WEBHOOK_URL) return;
+  const expected = `${WEBHOOK_URL.replace(/\/+$/, '')}/webhook`;
+  try {
+    const w = await bot.telegram.getWebhookInfo();
+    if (w.url !== expected) {
+      await bot.telegram.setWebhook(expected);
+      logger.warn('Webhook drifted — re-set', {
+        had: w.url || '(empty)',
+        set: expected,
+        tgError: w.last_error_message || null,
+      });
+    }
+  } catch (err) {
+    logger.error('Webhook watchdog failed', { error: err.message });
+  }
+}
+setInterval(ensureWebhook, 60_000).unref();
+
 /* ── Startup (retried forever on failure) ─────────────────────────────── */
 async function boot() {
   let attempt = 0;
@@ -157,6 +203,8 @@ async function boot() {
       } else {
         await launchPolling();
       }
+
+      await refreshBotInfo();
 
       logger.info('🚀 OrbitSynth Bot is online!', {
         mode:        WEBHOOK_URL ? 'webhook' : 'polling',
