@@ -101,10 +101,12 @@ module.exports = async (ctx) => {
     logger.error("Image generation error", { userId, error: err.message, status: err.status });
 
     const reason =
-      err.message?.includes("402") || err.message?.includes("429")
+      err.message?.includes("402") || err.message?.includes("429") || err.message?.includes("quota")
         ? "The image service is busy right now. Wait a few seconds and try again."
         : err.message?.includes("Timeout") || err.message?.includes("timed out") || err.message?.includes("fetch failed")
         ? "The image service took too long to respond. Try again."
+        : err.message?.includes("sendPhoto") || err.message?.includes("PHOTO")
+        ? "The image was generated but couldn't be sent. Try again."
         : "Something went wrong while generating. Try a different prompt.";
 
     const text = `❌ <b>Generation failed</b>\n📝 <i>${escapeHtml(promptText)}</i>\n\n${reason}\n\n<i>Tip: try /imagine again in a few seconds.</i>`;
