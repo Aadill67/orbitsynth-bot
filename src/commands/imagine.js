@@ -74,14 +74,20 @@ module.exports = async (ctx) => {
     } catch (sendErr) {
       // Transient Telegram failure — retry once before giving up.
       logger.warn("sendPhoto retry", { userId, error: sendErr.message });
-      await ctx.sendChatAction("upload_photo").catch(() => {});
-      await ctx.replyWithPhoto(
-        { source: imageBuffer, filename: "generated.jpg" },
-        {
-          parse_mode: "HTML",
-          caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(promptText)}</i>`,
-        },
-      );
+      try {
+        await ctx.sendChatAction("upload_photo").catch(() => {});
+        await ctx.replyWithPhoto(
+          { source: imageBuffer, filename: "generated.jpg" },
+          {
+            parse_mode: "HTML",
+            caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(promptText)}</i>`,
+          },
+        );
+      } catch (retryErr) {
+        // Both sends failed — tell the user instead of dying silently.
+        logger.error("sendPhoto failed after retry", { userId, error: retryErr.message });
+        throw retryErr;
+      }
     }
 
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});

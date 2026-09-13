@@ -17,14 +17,17 @@ module.exports = (err, ctx) => {
     update:     JSON.stringify(ctx?.update)?.slice(0, 200),
   });
 
-  // Best-effort user notification — never tell the user to "reset the bot",
-  // that is admin jargon and scares people.
+  // Best-effort user notification — try plain text first, then a shorter
+  // fallback. Never let an error escape completely without the user knowing.
+  const msg = '⚠️ Something went wrong on my end.\n' +
+    'Please try again in a moment. If it keeps happening, use /ping.';
+
   try {
-    ctx?.reply?.(
-      '⚠️ Something went wrong on my end.\n' +
-      'Please try again in a moment. If it keeps happening, use /ping.'
-    );
+    ctx?.reply?.(msg)?.catch(() => {
+      // reply() itself rejected — try one more time with a minimal message.
+      ctx?.reply?.('⚠️ An error occurred. Please try again.').catch(() => {});
+    });
   } catch (_) {
-    // If even this reply fails, there's nothing more we can do
+    // If even this fails, there's nothing more we can do
   }
 };
