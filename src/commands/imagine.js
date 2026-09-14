@@ -55,36 +55,25 @@ module.exports = async (ctx) => {
     }, 10000);
     statusTimer.unref?.();
 
-    const imageBuffer = await generateImageWithFlux(promptText);
+    const result = await generateImageWithFlux(promptText);
     clearInterval(statusTimer);
     statusTimer = null;
 
-    // Send the photo FIRST, delete the "Generating..." message only after the
-    // photo is safely delivered. If a failure happens here the user still sees
-    // the status message with a clear error instead of it mysteriously wiping.
+    const caption = { parse_mode: "HTML", caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(promptText)}</i>` };
+
+    // URL mode: Telegram downloads the image directly (avoids Render upload issues).
+    // Buffer mode: upload from the bot (works when Render networking is healthy).
     await ctx.sendChatAction("upload_photo").catch(() => {});
+    const photoSource = result.url ? result.url : { source: result.buffer, filename: "generated.jpg" };
+
     try {
-      await ctx.replyWithPhoto(
-        { source: imageBuffer, filename: "generated.jpg" },
-        {
-          parse_mode: "HTML",
-          caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(promptText)}</i>`,
-        },
-      );
+      await ctx.replyWithPhoto(photoSource, caption);
     } catch (sendErr) {
-      // Transient Telegram failure — retry once before giving up.
-      logger.warn("sendPhoto retry", { userId, error: sendErr.message });
+      logger.warn("sendPhoto retry", { userId, error: sendErr.message, mode: result.url ? 'url' : 'buffer' });
+      await ctx.sendChatAction("upload_photo").catch(() => {});
       try {
-        await ctx.sendChatAction("upload_photo").catch(() => {});
-        await ctx.replyWithPhoto(
-          { source: imageBuffer, filename: "generated.jpg" },
-          {
-            parse_mode: "HTML",
-            caption: `🎨 <b>Generated</b>\n📝 <i>${escapeHtml(promptText)}</i>`,
-          },
-        );
+        await ctx.replyWithPhoto(photoSource, caption);
       } catch (retryErr) {
-        // Both sends failed — tell the user instead of dying silently.
         logger.error("sendPhoto failed after retry", { userId, error: retryErr.message });
         throw retryErr;
       }
