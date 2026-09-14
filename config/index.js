@@ -12,7 +12,7 @@ const config = {
   },
   ai: {
     apiKey: process.env.GEMINI_API_KEY || null,
-    model:  process.env.AI_MODEL || 'gemini-3.6-flash',
+    model:  process.env.AI_MODEL || 'gemini-3-flash-preview',
     // If the configured model is down/disabled, the AI service walks this
     // chain until one responds. Keep known-good, stable model names here.
     // (As of 2026, gemini-2.x/1.x models are retired by Google.)
@@ -20,7 +20,7 @@ const config = {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '1024', 10),
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '512', 10),
     // Stream replies to the user token-by-token (big perceived speed win).
     // The reply placeholder is edited ~every streamEditMs so the user sees
     // text flowing in instead of a long silent wait. Disable by setting
