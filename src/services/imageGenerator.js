@@ -72,10 +72,11 @@ async function generateImageWithGemini(prompt) {
  * before handing it off.
  */
 async function generatePollinationsUrl(prompt) {
+  const enhanced = `high quality, detailed, 4k, professional, ${prompt}`;
   const seed = Math.floor(Math.random() * 1000000);
   const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-    `?width=1024&height=768&nologo=true&seed=${seed}`;
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(enhanced)}` +
+    `?width=1024&height=768&nologo=true&seed=${seed}&model=flux-realism`;
 
   logger.info("Generating image URL via Pollinations", { prompt: prompt.slice(0, 60) });
 
