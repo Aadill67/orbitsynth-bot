@@ -10,6 +10,9 @@ const COINCAP_IDS = { bitcoin: 'bitcoin', ethereum: 'ethereum', solana: 'solana'
 /* ── Binance pairs (only for majors) ────────────────────────────────── */
 const BINANCE_PAIRS = { btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT', xrp: 'XRPUSDT', ada: 'ADAUSDT', doge: 'DOGEUSDT', dot: 'DOTUSDT' };
 
+/* ── CoinPaprika ids (fallback — free, no key, works on Render) ───── */
+const PAPRIKA_IDS = { bitcoin: 'btc-bitcoin', ethereum: 'eth-ethereum', solana: 'sol-solana', ripple: 'xrp-xrp', cardano: 'ada-cardano', dogecoin: 'doge-dogecoin', polkadot: 'dot-polkadot', 'avalanche-2': 'avax-avalanche', 'matic-network': 'matic-polygon', chainlink: 'link-chainlink' };
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function fromCoinGecko(coinId) {
@@ -59,6 +62,23 @@ async function fromBinance(symbol) {
   };
 }
 
+async function fromCoinPaprika(coinId) {
+  const id = PAPRIKA_IDS[coinId] ?? coinId;
+  const res = await fetchWithTimeout(
+    `https://api.coinpaprika.com/v1/tickers/${id}`,
+    {}, 12000
+  );
+  if (!res.ok) throw new Error(`CoinPaprika ${res.status}`);
+  const data = await res.json();
+  const usd = data?.quotes?.USD;
+  if (!usd) throw new Error('Coin not found on CoinPaprika');
+  return {
+    price: usd.price,
+    change: usd.percent_change_24h ?? null,
+    marketCap: usd.market_cap ?? null,
+  };
+}
+
 module.exports = async (ctx) => {
   const text = ctx.message.text.replace(/^\/(crypto|btc|eth|sol|xrp|ada|doge)\s*/i, '').trim();
   const cmd = ctx.message.text.split(' ')[0].toLowerCase().replace('/', '');
@@ -95,10 +115,16 @@ module.exports = async (ctx) => {
       catch (e) { errors.push(e.message); }
     }
 
+    // 4) CoinPaprika — free, no API key, works on Render
+    if (!result) {
+      try { result = await fromCoinPaprika(coinId); }
+      catch (e) { errors.push(e.message); }
+    }
+
     if (!result) {
       await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
       logger.warn('All crypto providers failed', { symbol, errors });
-      return ctx.reply(`❌ Could not fetch ${symbol.toUpperCase()}. Try a different name.\nExample: <code>/crypto bitcoin</code>`);
+      return ctx.replyWithHTML(`❌ Could not fetch ${symbol.toUpperCase()}. Try a different name.\nExample: <code>/crypto bitcoin</code>`);
     }
 
     const change = result.change;
@@ -123,6 +149,6 @@ module.exports = async (ctx) => {
   } catch (err) {
     await ctx.telegram.deleteMessage(ctx.chat.id, waitMsg.message_id).catch(() => {});
     logger.error('Crypto error', { symbol, error: err.message });
-    await ctx.reply(`❌ Could not fetch ${symbol.toUpperCase()}. Try a different name.\nExample: <code>/crypto bitcoin</code>`);
+    await ctx.replyWithHTML(`❌ Could not fetch ${symbol.toUpperCase()}. Try a different name.\nExample: <code>/crypto bitcoin</code>`);
   }
 };

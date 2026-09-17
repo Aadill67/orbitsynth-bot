@@ -20,7 +20,7 @@ const config = {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
-    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '512', 10),
+    maxTokens: parseInt(process.env.AI_MAX_TOKENS || '4096', 10),
     // Stream replies to the user token-by-token (big perceived speed win).
     // The reply placeholder is edited ~every streamEditMs so the user sees
     // text flowing in instead of a long silent wait. Disable by setting
